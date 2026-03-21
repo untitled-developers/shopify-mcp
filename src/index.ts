@@ -1,0 +1,51 @@
+#!/usr/bin/env node
+
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { loadConfig } from "./config.js";
+import { ShopifyClient } from "./shopify-client.js";
+import { registerShopTools } from "./tools/shop.js";
+import { registerProductTools } from "./tools/products.js";
+import { registerOrderTools } from "./tools/orders.js";
+import { registerCustomerTools } from "./tools/customers.js";
+import { registerInventoryTools } from "./tools/inventory.js";
+import { registerCollectionTools } from "./tools/collections.js";
+import { registerVariantTools } from "./tools/variants.js";
+import { registerDraftOrderTools } from "./tools/draft-orders.js";
+import { registerDiscountTools } from "./tools/discounts.js";
+import { registerFulfillmentTools } from "./tools/fulfillments.js";
+import { registerWebhookTools } from "./tools/webhooks.js";
+import { registerImageTools } from "./tools/images.js";
+
+async function main() {
+  const config = loadConfig();
+  const client = new ShopifyClient(config);
+
+  const server = new McpServer({
+    name: "kockatoos-shopify-mcp",
+    version: "1.0.0",
+  });
+
+  // Register all tool groups
+  registerShopTools(server, client);
+  registerProductTools(server, client);
+  registerOrderTools(server, client);
+  registerCustomerTools(server, client);
+  registerInventoryTools(server, client);
+  registerCollectionTools(server, client);
+  registerVariantTools(server, client);
+  registerDraftOrderTools(server, client);
+  registerDiscountTools(server, client);
+  registerFulfillmentTools(server, client);
+  registerWebhookTools(server, client);
+  registerImageTools(server, client);
+
+  // Connect via stdio (standard MCP transport)
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main().catch((err) => {
+  console.error("Fatal error starting Shopify MCP server:", err);
+  process.exit(1);
+});
