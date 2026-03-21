@@ -1,45 +1,57 @@
 # Kockatoos Shopify MCP Server
 
-[![CI](https://github.com/kockatoos/shopify-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/kockatoos/shopify-mcp/actions/workflows/ci.yml)
+[![CI](https://github.com/untitled-developers/shopify-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/untitled-developers/shopify-mcp/actions/workflows/ci.yml)
 
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **79 tools** — using both REST and GraphQL under the hood.
 
 ---
 
+## Installation
+
+```bash
+npm install @kockatoos/shopify-mcp
+```
+
+Or run directly with npx (no install needed):
+
+```bash
+npx @kockatoos/shopify-mcp
+```
+
+---
+
 ## Quick Start
 
-### 1. Install dependencies
+### Using npx (recommended)
+
+Add this to your MCP client configuration (e.g. `claude_desktop_config.json`, `.vscode/mcp.json`, or equivalent):
+
+```json
+{
+  "mcpServers": {
+    "kockatoos-shopify-mcp": {
+      "command": "npx",
+      "args": ["-y", "@kockatoos/shopify-mcp"],
+      "env": {
+        "SHOPIFY_STORE_NAME": "your-store-name",
+        "SHOPIFY_CLIENT_ID": "your-client-id",
+        "SHOPIFY_CLIENT_SECRET": "your-client-secret"
+      }
+    }
+  }
+}
+```
+
+### Using a local clone
 
 ```bash
+git clone https://github.com/untitled-developers/shopify-mcp.git
+cd shopify-mcp
 npm install
-```
-
-### 2. Configure credentials
-
-Copy the example and fill in your Shopify app credentials:
-
-```bash
-cp .env.example .env
-```
-
-```env
-SHOPIFY_STORE_NAME=your-store-name      # just the name, not the full domain
-SHOPIFY_CLIENT_ID=your-client-id
-SHOPIFY_CLIENT_SECRET=your-client-secret
-SHOPIFY_API_VERSION=2026-01             # optional, defaults to 2026-01
-```
-
-> **Where to find these:** Shopify Admin → Settings → Apps and sales channels → Develop apps → Your app → API credentials.
-
-### 3. Build
-
-```bash
 npm run build
 ```
 
-### 4. Add to your AI agent
-
-Add this to your MCP client configuration (e.g. `claude_desktop_config.json`, `.vscode/mcp.json`, or equivalent):
+Then point your MCP client to the built output:
 
 ```json
 {
@@ -57,23 +69,16 @@ Add this to your MCP client configuration (e.g. `claude_desktop_config.json`, `.
 }
 ```
 
-Or install globally via npm and use `npx`:
+### Configuration
 
-```json
-{
-  "mcpServers": {
-    "kockatoos-shopify-mcp": {
-      "command": "npx",
-      "args": ["-y", "kockatoos-shopify-mcp"],
-      "env": {
-        "SHOPIFY_STORE_NAME": "your-store-name",
-        "SHOPIFY_CLIENT_ID": "your-client-id",
-        "SHOPIFY_CLIENT_SECRET": "your-client-secret"
-      }
-    }
-  }
-}
-```
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SHOPIFY_STORE_NAME` | Yes | Your store name (just the name, not the full `.myshopify.com` domain) |
+| `SHOPIFY_CLIENT_ID` | Yes | App client ID |
+| `SHOPIFY_CLIENT_SECRET` | Yes | App client secret |
+| `SHOPIFY_API_VERSION` | No | API version (defaults to `2026-01`) |
+
+> **Where to find these:** Shopify Admin → Settings → Apps and sales channels → Develop apps → Your app → API credentials.
 
 ---
 

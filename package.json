@@ -1,5 +1,5 @@
 {
-  "name": "kockatoos-shopify-mcp",
+  "name": "@kockatoos/shopify-mcp",
   "version": "1.0.0",
   "description": "MCP server for Shopify Admin API — lets AI agents manage a Shopify store",
   "author": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/kockatoos/shopify-mcp.git"
+    "url": "https://github.com/untitled-developers/shopify-mcp.git"
   },
   "main": "dist/index.js",
   "bin": {
@@ -34,6 +34,9 @@
     "agent"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "commonjs",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
