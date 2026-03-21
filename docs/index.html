@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kockatoos Shopify MCP Server</title>
+  <meta name="description" content="An MCP server that gives AI agents full access to the Shopify Admin API. 79 tools for managing products, orders, customers, collections, fulfillments, discounts, and more.">
+  <meta property="og:title" content="Kockatoos Shopify MCP Server">
+  <meta property="og:description" content="Give AI agents full access to the Shopify Admin API with 79 tools — REST and GraphQL under the hood.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://untitled-developers.github.io/shopify-mcp/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --surface-2: #1c1c1c;
+      --border: #2a2a2a;
+      --border-hover: #3a3a3a;
+      --text: #e8e8e8;
+      --text-muted: #888;
+      --accent: #96bf48;
+      --accent-dim: rgba(150, 191, 72, 0.15);
+      --accent-hover: #a8d450;
+      --code-bg: #111;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--accent-hover); }
+
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.875rem;
+    }
+
+    /* --- NAV --- */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-brand {
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .nav-brand svg { width: 22px; height: 22px; }
+    .nav-links { display: flex; gap: 1.5rem; align-items: center; }
+    .nav-links a { color: var(--text-muted); font-size: 0.875rem; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* --- HERO --- */
+    .hero {
+      padding: 10rem 2rem 5rem;
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      padding: 0.375rem 1rem;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      border: 1px solid rgba(150, 191, 72, 0.25);
+    }
+    .hero h1 {
+      font-size: clamp(2.25rem, 5vw, 3.5rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero p {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto 2.5rem;
+      line-height: 1.7;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0a0a0a;
+    }
+    .btn-primary:hover { background: var(--accent-hover); color: #0a0a0a; }
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--border-hover); background: #222; }
+
+    /* --- INSTALL BAR --- */
+    .install-bar {
+      max-width: 520px;
+      margin: 2rem auto 0;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      padding: 0.85rem 1.25rem;
+      gap: 0.75rem;
+    }
+    .install-bar .prompt { color: var(--accent); user-select: none; }
+    .install-bar code { color: var(--text-muted); flex: 1; font-size: 0.9rem; }
+    .install-bar button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      transition: color 0.2s;
+    }
+    .install-bar button:hover { color: var(--text); }
+
+    /* --- SECTIONS --- */
+    section {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 5rem 2rem;
+    }
+    section + section { padding-top: 2rem; }
+    .section-header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .section-header h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+    .section-header p {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 550px;
+      margin: 0 auto;
+    }
+
+    /* --- STATS --- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      max-width: 750px;
+      margin: 0 auto 4rem;
+    }
+    .stat {
+      text-align: center;
+      padding: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .stat-num {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+    }
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    /* --- TOOL GRID --- */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+    .tool-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .tool-card:hover { border-color: var(--border-hover); }
+    .tool-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .tool-card h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    .tool-count {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.65rem;
+      border-radius: 100px;
+    }
+    .tool-card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+    .tool-card li {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      padding: 0.2rem 0;
+    }
+    .tool-card li code {
+      color: var(--text);
+      font-size: 0.78rem;
+      background: var(--surface-2);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    /* --- CONFIG --- */
+    .config-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .config-block pre {
+      padding: 1.5rem;
+      overflow-x: auto;
+      line-height: 1.8;
+      color: var(--text-muted);
+    }
+    .config-block .key { color: #7cacf8; }
+    .config-block .str { color: var(--accent); }
+    .config-block .brace { color: var(--text-muted); }
+
+    .config-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2rem;
+    }
+    .config-table th, .config-table td {
+      padding: 0.85rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .config-table th {
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    .config-table td code {
+      background: var(--surface-2);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.82rem;
+    }
+    .config-table .required {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.78rem;
+    }
+    .config-table .optional {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+
+    /* --- AUTH --- */
+    .auth-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+    }
+    .auth-block h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+    .scopes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.5rem;
+    }
+    .scope {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      padding: 0.4rem 0.75rem;
+      background: var(--surface-2);
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* --- FOOTER --- */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--text-muted); }
+    footer a:hover { color: var(--text); }
+    .footer-links {
+      display: flex;
+      gap: 2rem;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 640px) {
+      .hero { padding: 8rem 1.25rem 3rem; }
+      .hero h1 { font-size: 2rem; }
+      section { padding: 3rem 1.25rem; }
+      .tool-grid { grid-template-columns: 1fr; }
+      .nav-links { gap: 1rem; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <div class="nav-inner">
+      <div class="nav-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Kockatoos Shopify MCP
+      </div>
+      <div class="nav-links">
+        <a href="#tools">Tools</a>
+        <a href="#setup">Setup</a>
+        <a href="https://github.com/untitled-developers/shopify-mcp">GitHub</a>
+        <a href="https://www.npmjs.com/package/@kockatoos/shopify-mcp">npm</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-badge">MCP Server &middot; 79 Tools</div>
+    <h1>Give your AI agents<br><span>full Shopify access</span></h1>
+    <p>An MCP server that connects AI agents to the Shopify Admin API. Manage products, orders, customers, inventory, and more — using REST and GraphQL under the hood.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#setup">Get Started</a>
+      <a class="btn btn-secondary" href="https://github.com/untitled-developers/shopify-mcp">View on GitHub</a>
+    </div>
+    <div class="install-bar">
+      <span class="prompt">$</span>
+      <code id="install-cmd">npx @kockatoos/shopify-mcp</code>
+      <button onclick="copyInstall()" aria-label="Copy install command">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- STATS -->
+  <section>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">79</div>
+        <div class="stat-label">Tools</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">12</div>
+        <div class="stat-label">Categories</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">REST + GraphQL</div>
+        <div class="stat-label">API Support</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">OAuth</div>
+        <div class="stat-label">Authentication</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TOOLS -->
+  <section id="tools">
+    <div class="section-header">
+      <h2>Available Tools</h2>
+      <p>79 tools across 12 categories covering the full Shopify Admin API surface.</p>
+    </div>
+    <div class="tool-grid">
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Shop</h3>
+          <span class="tool-count">1 tool</span>
+        </div>
+        <ul>
+          <li><code>get_shop_info</code> &mdash; Store name, domain, email, plan, currency, timezone</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Products</h3>
+          <span class="tool-count">10 tools</span>
+        </div>
+        <ul>
+          <li><code>list_products</code> &mdash; List with filters and pagination</li>
+          <li><code>get_product</code> &mdash; Full details with variants and images</li>
+          <li><code>create_product</code> &mdash; Create with variants and images</li>
+          <li><code>update_product</code> &mdash; Update fields</li>
+          <li><code>delete_product</code> &mdash; Permanently delete</li>
+          <li><code>list_product_metafields</code> &mdash; List metafields (GraphQL)</li>
+          <li><code>get_product_metafield</code> &mdash; Get by namespace/key (GraphQL)</li>
+          <li><code>set_product_metafield</code> &mdash; Create/update via metafieldsSet (GraphQL)</li>
+          <li><code>delete_product_metafield</code> &mdash; Delete metafield (GraphQL)</li>
+          <li><code>list_metafield_definitions</code> &mdash; List definitions (GraphQL)</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Product Images</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_product_images</code> &mdash; List all images</li>
+          <li><code>get_product_image</code> &mdash; Get a specific image</li>
+          <li><code>create_product_image</code> &mdash; Add by URL or base64</li>
+          <li><code>update_product_image</code> &mdash; Update alt text or position</li>
+          <li><code>delete_product_image</code> &mdash; Remove an image</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Variants</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_variants</code> &mdash; List all variants of a product</li>
+          <li><code>get_variant</code> &mdash; Get a specific variant</li>
+          <li><code>create_variant</code> &mdash; Add a variant</li>
+          <li><code>update_variant</code> &mdash; Update price, SKU, inventory</li>
+          <li><code>delete_variant</code> &mdash; Remove a variant</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Collections</h3>
+          <span class="tool-count">10 tools</span>
+        </div>
+        <ul>
+          <li><code>list_custom_collections</code> &mdash; List manual collections</li>
+          <li><code>list_smart_collections</code> &mdash; List automated collections</li>
+          <li><code>get_custom_collection</code> &mdash; Get by ID</li>
+          <li><code>get_smart_collection</code> &mdash; Get by ID</li>
+          <li><code>create_custom_collection</code> &mdash; Create manual collection</li>
+          <li><code>update_custom_collection</code> &mdash; Update collection</li>
+          <li><code>delete_custom_collection</code> &mdash; Delete collection</li>
+          <li><code>add_product_to_collection</code> &mdash; Add a product</li>
+          <li><code>remove_product_from_collection</code> &mdash; Remove a product</li>
+          <li><code>list_collection_products</code> &mdash; List products in collection</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Orders</h3>
+          <span class="tool-count">9 tools</span>
+        </div>
+        <ul>
+          <li><code>list_orders</code> &mdash; List with filters and date range</li>
+          <li><code>get_order</code> &mdash; Full details with line items</li>
+          <li><code>update_order</code> &mdash; Update notes, tags, email</li>
+          <li><code>close_order</code> &mdash; Mark as closed</li>
+          <li><code>cancel_order</code> &mdash; Cancel with reason and restock</li>
+          <li><code>list_order_metafields</code> &mdash; List metafields (GraphQL)</li>
+          <li><code>get_order_metafield</code> &mdash; Get by namespace/key (GraphQL)</li>
+          <li><code>set_order_metafield</code> &mdash; Create/update (GraphQL)</li>
+          <li><code>delete_order_metafield</code> &mdash; Delete metafield (GraphQL)</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Customers</h3>
+          <span class="tool-count">9 tools</span>
+        </div>
+        <ul>
+          <li><code>list_customers</code> &mdash; List with pagination</li>
+          <li><code>search_customers</code> &mdash; Search by email, name, country</li>
+          <li><code>get_customer</code> &mdash; Full details and addresses</li>
+          <li><code>create_customer</code> &mdash; Create with addresses</li>
+          <li><code>update_customer</code> &mdash; Update fields</li>
+          <li><code>list_customer_metafields</code> &mdash; List metafields (GraphQL)</li>
+          <li><code>get_customer_metafield</code> &mdash; Get by namespace/key (GraphQL)</li>
+          <li><code>set_customer_metafield</code> &mdash; Create/update (GraphQL)</li>
+          <li><code>delete_customer_metafield</code> &mdash; Delete metafield (GraphQL)</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Inventory</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_locations</code> &mdash; List all locations</li>
+          <li><code>get_location</code> &mdash; Get location details</li>
+          <li><code>list_inventory_levels</code> &mdash; Stock quantities at a location</li>
+          <li><code>adjust_inventory</code> &mdash; Adjust stock by +/&minus;</li>
+          <li><code>set_inventory</code> &mdash; Set absolute quantity</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Draft Orders</h3>
+          <span class="tool-count">7 tools</span>
+        </div>
+        <ul>
+          <li><code>list_draft_orders</code> &mdash; List with pagination</li>
+          <li><code>get_draft_order</code> &mdash; Get by ID</li>
+          <li><code>create_draft_order</code> &mdash; Create with line items</li>
+          <li><code>update_draft_order</code> &mdash; Update draft</li>
+          <li><code>complete_draft_order</code> &mdash; Convert to real order</li>
+          <li><code>send_draft_order_invoice</code> &mdash; Email invoice</li>
+          <li><code>delete_draft_order</code> &mdash; Delete draft</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Discounts</h3>
+          <span class="tool-count">8 tools</span>
+        </div>
+        <ul>
+          <li><code>list_price_rules</code> &mdash; List all price rules</li>
+          <li><code>get_price_rule</code> &mdash; Get by ID</li>
+          <li><code>create_price_rule</code> &mdash; Create rule (%, fixed, shipping)</li>
+          <li><code>update_price_rule</code> &mdash; Update rule</li>
+          <li><code>delete_price_rule</code> &mdash; Delete rule</li>
+          <li><code>list_discount_codes</code> &mdash; List codes for a rule</li>
+          <li><code>create_discount_code</code> &mdash; Create a code</li>
+          <li><code>delete_discount_code</code> &mdash; Delete a code</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Fulfillments</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_fulfillment_orders</code> &mdash; List fulfillment orders</li>
+          <li><code>list_fulfillments</code> &mdash; List fulfillments</li>
+          <li><code>create_fulfillment</code> &mdash; Create with tracking</li>
+          <li><code>update_fulfillment_tracking</code> &mdash; Update tracking</li>
+          <li><code>cancel_fulfillment</code> &mdash; Cancel fulfillment</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Webhooks</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_webhooks</code> &mdash; List all webhooks</li>
+          <li><code>get_webhook</code> &mdash; Get by ID</li>
+          <li><code>create_webhook</code> &mdash; Register a webhook</li>
+          <li><code>update_webhook</code> &mdash; Update URL or topic</li>
+          <li><code>delete_webhook</code> &mdash; Remove a webhook</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SETUP -->
+  <section id="setup">
+    <div class="section-header">
+      <h2>Quick Setup</h2>
+      <p>Add to your MCP client configuration and start using it immediately.</p>
+    </div>
+
+    <div class="config-block">
+      <pre><span class="brace">{</span>
+  <span class="key">"mcpServers"</span>: <span class="brace">{</span>
+    <span class="key">"kockatoos-shopify-mcp"</span>: <span class="brace">{</span>
+      <span class="key">"command"</span>: <span class="str">"npx"</span>,
+      <span class="key">"args"</span>: [<span class="str">"-y"</span>, <span class="str">"@kockatoos/shopify-mcp"</span>],
+      <span class="key">"env"</span>: <span class="brace">{</span>
+        <span class="key">"SHOPIFY_STORE_NAME"</span>: <span class="str">"your-store-name"</span>,
+        <span class="key">"SHOPIFY_CLIENT_ID"</span>: <span class="str">"your-client-id"</span>,
+        <span class="key">"SHOPIFY_CLIENT_SECRET"</span>: <span class="str">"your-client-secret"</span>
+      <span class="brace">}</span>
+    <span class="brace">}</span>
+  <span class="brace">}</span>
+<span class="brace">}</span></pre>
+    </div>
+
+    <table class="config-table">
+      <thead>
+        <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>SHOPIFY_STORE_NAME</code></td>
+          <td><span class="required">Required</span></td>
+          <td>Your store name (not the full <code>.myshopify.com</code> domain)</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_CLIENT_ID</code></td>
+          <td><span class="required">Required</span></td>
+          <td>App client ID</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_CLIENT_SECRET</code></td>
+          <td><span class="required">Required</span></td>
+          <td>App client secret</td>
+        </tr>
+        <tr>
+          <td><code>SHOPIFY_API_VERSION</code></td>
+          <td><span class="optional">Optional</span></td>
+          <td>API version (defaults to <code>2026-01</code>)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- AUTH -->
+  <section id="auth">
+    <div class="section-header">
+      <h2>Authentication</h2>
+      <p>Uses Shopify's client_credentials OAuth grant. No browser auth needed.</p>
+    </div>
+
+    <div class="auth-block">
+      <h3>Required App Scopes</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">Configure in Shopify Admin &rarr; Apps and sales channels &rarr; Develop apps &rarr; API access.</p>
+      <div class="scopes-grid">
+        <div class="scope">read_products, write_products</div>
+        <div class="scope">read_orders, write_orders</div>
+        <div class="scope">read_customers, write_customers</div>
+        <div class="scope">read_inventory, write_inventory</div>
+        <div class="scope">read_locations</div>
+        <div class="scope">read_draft_orders, write_draft_orders</div>
+        <div class="scope">read_price_rules, write_price_rules</div>
+        <div class="scope">read_discounts, write_discounts</div>
+        <div class="scope">read_shipping, write_shipping</div>
+        <div class="scope">read_fulfillments, write_fulfillments</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="footer-links">
+      <a href="https://github.com/untitled-developers/shopify-mcp">GitHub</a>
+      <a href="https://www.npmjs.com/package/@kockatoos/shopify-mcp">npm</a>
+      <a href="https://modelcontextprotocol.io">MCP Protocol</a>
+    </div>
+    <p>MIT License &middot; Built by <a href="https://github.com/untitled-developers">Kockatoos</a></p>
+  </footer>
+
+  <script>
+    function copyInstall() {
+      const text = document.getElementById('install-cmd').textContent;
+      navigator.clipboard.writeText(text);
+    }
+  </script>
+</body>
+</html>

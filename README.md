@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/untitled-developers/shopify-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/untitled-developers/shopify-mcp/actions/workflows/ci.yml)
 
+**[Website](https://untitled-developers.github.io/shopify-mcp)** | **[npm](https://www.npmjs.com/package/@kockatoos/shopify-mcp)** | **[GitHub](https://github.com/untitled-developers/shopify-mcp)**
+
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **79 tools** — using both REST and GraphQL under the hood.
 
 ---
