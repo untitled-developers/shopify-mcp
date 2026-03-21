@@ -84,13 +84,13 @@ Then point your MCP client to the built output:
 
 ## Available Tools (79)
 
-### 🏪 Shop (1)
+### Shop (1)
 
 | Tool | Description |
 |------|-------------|
 | `get_shop_info` | Get store name, domain, email, plan, currency, timezone |
 
-### 📦 Products (10)
+### Products (10)
 
 | Tool | Description |
 |------|-------------|
@@ -105,7 +105,7 @@ Then point your MCP client to the built output:
 | `delete_product_metafield` | Delete a product metafield (GraphQL) |
 | `list_metafield_definitions` | List all product metafield definitions with validations (GraphQL) |
 
-### 🖼️ Product Images (5)
+### Product Images (5)
 
 | Tool | Description |
 |------|-------------|
@@ -115,7 +115,7 @@ Then point your MCP client to the built output:
 | `update_product_image` | Update image alt text or position |
 | `delete_product_image` | Remove an image from a product |
 
-### 🔀 Variants (5)
+### Variants (5)
 
 | Tool | Description |
 |------|-------------|
@@ -125,7 +125,7 @@ Then point your MCP client to the built output:
 | `update_variant` | Update variant price, SKU, inventory, etc. |
 | `delete_variant` | Remove a variant from a product |
 
-### 📂 Collections (10)
+### Collections (10)
 
 | Tool | Description |
 |------|-------------|
@@ -140,7 +140,7 @@ Then point your MCP client to the built output:
 | `remove_product_from_collection` | Remove a product from a custom collection |
 | `list_collection_products` | List all products in a collection |
 
-### 🛒 Orders (9)
+### Orders (9)
 
 | Tool | Description |
 |------|-------------|
@@ -154,7 +154,7 @@ Then point your MCP client to the built output:
 | `set_order_metafield` | Create or update an order metafield via `metafieldsSet` (GraphQL) |
 | `delete_order_metafield` | Delete an order metafield (GraphQL) |
 
-### 👤 Customers (9)
+### Customers (9)
 
 | Tool | Description |
 |------|-------------|
@@ -168,7 +168,7 @@ Then point your MCP client to the built output:
 | `set_customer_metafield` | Create or update a customer metafield via `metafieldsSet` (GraphQL) |
 | `delete_customer_metafield` | Delete a customer metafield (GraphQL) |
 
-### 📊 Inventory (5)
+### Inventory (5)
 
 | Tool | Description |
 |------|-------------|
@@ -178,7 +178,7 @@ Then point your MCP client to the built output:
 | `adjust_inventory` | Adjust stock by a relative amount (+/-) |
 | `set_inventory` | Set stock to an absolute quantity |
 
-### 📝 Draft Orders (7)
+### Draft Orders (7)
 
 | Tool | Description |
 |------|-------------|
@@ -190,7 +190,7 @@ Then point your MCP client to the built output:
 | `send_draft_order_invoice` | Email the draft order invoice to the customer |
 | `delete_draft_order` | Delete a draft order |
 
-### 🏷️ Discounts (8)
+### Discounts (8)
 
 | Tool | Description |
 |------|-------------|
@@ -203,7 +203,7 @@ Then point your MCP client to the built output:
 | `create_discount_code` | Create a discount code for a price rule |
 | `delete_discount_code` | Delete a discount code |
 
-### 📦 Fulfillments (5)
+### Fulfillments (5)
 
 | Tool | Description |
 |------|-------------|
@@ -213,7 +213,7 @@ Then point your MCP client to the built output:
 | `update_fulfillment_tracking` | Update tracking number/URL on a fulfillment |
 | `cancel_fulfillment` | Cancel a fulfillment |
 
-### 🔔 Webhooks (5)
+### Webhooks (5)
 
 | Tool | Description |
 |------|-------------|
