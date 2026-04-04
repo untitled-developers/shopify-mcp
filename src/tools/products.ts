@@ -280,6 +280,77 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
     }
   );
 
+  // ── Create a metafield definition (store-level) ────────────────────
+  server.tool(
+    "create_metafield_definition",
+    "Create a new metafield definition for products at the store level. Definitions establish structure and validation rules (e.g. allowed choices) for metafields. Use `validations` to set constraints like allowed choices for text fields.",
+    {
+      name: z.string().describe("Human-readable name for the metafield definition (e.g. 'Ingredients')."),
+      namespace: z.string().default("custom").describe("Namespace for the definition (e.g. 'custom'). Default: 'custom'."),
+      key: z.string().describe("Unique key within the namespace (e.g. 'ingredients'). Must be 2-64 chars, alphanumeric/hyphen/underscore."),
+      type: z.string().describe("Metafield type (e.g. 'single_line_text_field', 'list.single_line_text_field', 'number_integer', 'json')."),
+      description: z.string().optional().describe("Description of the metafield definition."),
+      owner_type: z.enum([
+        "PRODUCT", "VARIANT", "COLLECTION", "CUSTOMER", "ORDER",
+        "SHOP", "COMPANY", "COMPANY_LOCATION", "DRAFT_ORDER", "LOCATION",
+      ]).default("PRODUCT").describe("Resource type this definition applies to. Default: PRODUCT."),
+      validations: z
+        .array(z.object({
+          name: z.string().describe("Validation name (e.g. 'choices', 'min', 'max', 'regex', 'list.max')."),
+          value: z.string().describe("Validation value (e.g. a JSON array string for choices)."),
+        }))
+        .optional()
+        .describe("Validation rules. For choices: [{name:'choices', value:'[\"A\",\"B\"]'}]. For list max: [{name:'list.max', value:'10'}]."),
+      pin: z.boolean().optional().describe("Whether to pin the definition in the Shopify admin UI."),
+    },
+    async ({ name, namespace, key, type, description, owner_type, validations, pin }) => {
+      const definition: Record<string, unknown> = {
+        name,
+        namespace,
+        key,
+        type,
+        ownerType: owner_type,
+      };
+      if (description) definition.description = description;
+      if (validations) definition.validations = validations;
+      if (pin !== undefined) definition.pin = pin;
+
+      const query = `mutation ($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition {
+            id
+            name
+            namespace
+            key
+            type { name }
+            description
+            ownerType
+            pinnedPosition
+            validations { name value }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`;
+      const data = await client.graphql<{
+        metafieldDefinitionCreate: {
+          createdDefinition: unknown;
+          userErrors: { field: string[]; message: string }[];
+        };
+      }>(query, { definition });
+      if (data.metafieldDefinitionCreate.userErrors.length > 0) {
+        throw new Error(
+          `Shopify metafieldDefinitionCreate errors: ${JSON.stringify(data.metafieldDefinitionCreate.userErrors)}`
+        );
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify(data.metafieldDefinitionCreate.createdDefinition, null, 2) }],
+      };
+    }
+  );
+
   // ── List metafield definitions (store-level) ──────────────────────
   server.tool(
     "list_metafield_definitions",

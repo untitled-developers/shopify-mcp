@@ -31,10 +31,10 @@ const testConfig = {
 const EXPECTED_TOOL_NAMES = [
   // shop (1)
   "get_shop_info",
-  // products (10)
+  // products (11)
   "list_products", "get_product", "create_product", "update_product", "delete_product",
   "list_product_metafields", "get_product_metafield", "set_product_metafield", "delete_product_metafield",
-  "list_metafield_definitions",
+  "list_metafield_definitions", "create_metafield_definition",
   // images (5)
   "list_product_images", "get_product_image", "create_product_image", "update_product_image", "delete_product_image",
   // variants (5)
@@ -97,8 +97,8 @@ describe("Tool Registration", () => {
     registerImageTools(server, client);
   });
 
-  it("registers exactly 79 tools", () => {
-    expect(registeredTools).toHaveLength(79);
+  it("registers exactly 80 tools", () => {
+    expect(registeredTools).toHaveLength(80);
   });
 
   it("registers all expected tool names", () => {
@@ -114,7 +114,7 @@ describe("Tool Registration", () => {
   describe("tool groups register correct counts", () => {
     const expectedCounts: Record<string, number> = {
       shop: 1,
-      products: 10,
+      products: 11,
       images: 5,
       variants: 5,
       collections: 10,

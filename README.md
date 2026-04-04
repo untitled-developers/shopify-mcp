@@ -4,7 +4,7 @@
 
 **[Website](https://untitled-developers.github.io/shopify-mcp)** | **[npm](https://www.npmjs.com/package/@kockatoos/shopify-mcp)** | **[GitHub](https://github.com/untitled-developers/shopify-mcp)**
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **79 tools** — using both REST and GraphQL under the hood.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **80 tools** — using both REST and GraphQL under the hood.
 
 ---
 
@@ -84,7 +84,7 @@ Then point your MCP client to the built output:
 
 ---
 
-## Available Tools (79)
+## Available Tools (80)
 
 ### Shop (1)
 
@@ -92,7 +92,7 @@ Then point your MCP client to the built output:
 |------|-------------|
 | `get_shop_info` | Get store name, domain, email, plan, currency, timezone |
 
-### Products (10)
+### Products (11)
 
 | Tool | Description |
 |------|-------------|
@@ -106,6 +106,7 @@ Then point your MCP client to the built output:
 | `set_product_metafield` | Create or update a product metafield via `metafieldsSet` (GraphQL) |
 | `delete_product_metafield` | Delete a product metafield (GraphQL) |
 | `list_metafield_definitions` | List all product metafield definitions with validations (GraphQL) |
+| `create_metafield_definition` | Create a new metafield definition for products (or other resource types) with validation rules (GraphQL) |
 
 ### Product Images (5)
 
