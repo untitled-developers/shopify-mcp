@@ -24,6 +24,7 @@ import { registerMenuTools } from "../src/tools/menus.js";
 import { registerFileTools } from "../src/tools/files.js";
 import { registerAppTools } from "../src/tools/apps.js";
 import { registerThemeTools } from "../src/tools/themes.js";
+import { registerPageTools } from "../src/tools/pages.js";
 
 const testConfig = {
   storeName: "test-store",
@@ -74,6 +75,8 @@ const EXPECTED_TOOL_NAMES = [
   // themes (10)
   "list_themes", "get_theme", "create_theme", "update_theme", "publish_theme", "delete_theme",
   "list_theme_files", "get_theme_files", "upsert_theme_files", "delete_theme_files",
+  // pages (5)
+  "list_pages", "get_page", "create_page", "update_page", "delete_page",
 ].sort();
 
 describe("Tool Registration", () => {
@@ -112,10 +115,11 @@ describe("Tool Registration", () => {
     registerFileTools(server, client);
     registerAppTools(server, client);
     registerThemeTools(server, client);
+    registerPageTools(server, client);
   });
 
-  it("registers exactly 101 tools", () => {
-    expect(registeredTools).toHaveLength(101);
+  it("registers exactly 106 tools", () => {
+    expect(registeredTools).toHaveLength(106);
   });
 
   it("registers all expected tool names", () => {
@@ -146,6 +150,7 @@ describe("Tool Registration", () => {
       files: 4,
       apps: 2,
       themes: 10,
+      pages: 5,
     };
 
     for (const [group, count] of Object.entries(expectedCounts)) {
@@ -174,6 +179,7 @@ describe("Tool Registration", () => {
           files: registerFileTools,
           apps: registerAppTools,
           themes: registerThemeTools,
+          pages: registerPageTools,
         };
 
         registerFns[group](s, c);
