@@ -16,6 +16,7 @@ import { registerDiscountTools } from "./tools/discounts.js";
 import { registerFulfillmentTools } from "./tools/fulfillments.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerImageTools } from "./tools/images.js";
+import { registerMenuTools } from "./tools/menus.js";
 
 async function main() {
   const config = loadConfig();
@@ -39,6 +40,7 @@ async function main() {
   registerFulfillmentTools(server, client);
   registerWebhookTools(server, client);
   registerImageTools(server, client);
+  registerMenuTools(server, client);
 
   // Connect via stdio (standard MCP transport)
   const transport = new StdioServerTransport();
