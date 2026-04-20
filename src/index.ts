@@ -17,6 +17,9 @@ import { registerFulfillmentTools } from "./tools/fulfillments.js";
 import { registerWebhookTools } from "./tools/webhooks.js";
 import { registerImageTools } from "./tools/images.js";
 import { registerMenuTools } from "./tools/menus.js";
+import { registerFileTools } from "./tools/files.js";
+import { registerAppTools } from "./tools/apps.js";
+import { registerThemeTools } from "./tools/themes.js";
 
 async function main() {
   const config = loadConfig();
@@ -41,6 +44,9 @@ async function main() {
   registerWebhookTools(server, client);
   registerImageTools(server, client);
   registerMenuTools(server, client);
+  registerFileTools(server, client);
+  registerAppTools(server, client);
+  registerThemeTools(server, client);
 
   // Connect via stdio (standard MCP transport)
   const transport = new StdioServerTransport();

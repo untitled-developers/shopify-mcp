@@ -20,6 +20,10 @@ import { registerDiscountTools } from "../src/tools/discounts.js";
 import { registerFulfillmentTools } from "../src/tools/fulfillments.js";
 import { registerWebhookTools } from "../src/tools/webhooks.js";
 import { registerImageTools } from "../src/tools/images.js";
+import { registerMenuTools } from "../src/tools/menus.js";
+import { registerFileTools } from "../src/tools/files.js";
+import { registerAppTools } from "../src/tools/apps.js";
+import { registerThemeTools } from "../src/tools/themes.js";
 
 const testConfig = {
   storeName: "test-store",
@@ -61,6 +65,15 @@ const EXPECTED_TOOL_NAMES = [
   "list_fulfillment_orders", "list_fulfillments", "create_fulfillment", "update_fulfillment_tracking", "cancel_fulfillment",
   // webhooks (5)
   "list_webhooks", "get_webhook", "create_webhook", "update_webhook", "delete_webhook",
+  // menus (5)
+  "list_menus", "get_menu", "create_menu", "update_menu", "delete_menu",
+  // files (4)
+  "list_files", "create_file", "update_file", "delete_files",
+  // apps (2)
+  "list_app_installations", "get_app_installation",
+  // themes (10)
+  "list_themes", "get_theme", "create_theme", "update_theme", "publish_theme", "delete_theme",
+  "list_theme_files", "get_theme_files", "upsert_theme_files", "delete_theme_files",
 ].sort();
 
 describe("Tool Registration", () => {
@@ -95,10 +108,14 @@ describe("Tool Registration", () => {
     registerFulfillmentTools(server, client);
     registerWebhookTools(server, client);
     registerImageTools(server, client);
+    registerMenuTools(server, client);
+    registerFileTools(server, client);
+    registerAppTools(server, client);
+    registerThemeTools(server, client);
   });
 
-  it("registers exactly 80 tools", () => {
-    expect(registeredTools).toHaveLength(80);
+  it("registers exactly 101 tools", () => {
+    expect(registeredTools).toHaveLength(101);
   });
 
   it("registers all expected tool names", () => {
@@ -125,6 +142,10 @@ describe("Tool Registration", () => {
       discounts: 8,
       fulfillments: 5,
       webhooks: 5,
+      menus: 5,
+      files: 4,
+      apps: 2,
+      themes: 10,
     };
 
     for (const [group, count] of Object.entries(expectedCounts)) {
@@ -149,6 +170,10 @@ describe("Tool Registration", () => {
           discounts: registerDiscountTools,
           fulfillments: registerFulfillmentTools,
           webhooks: registerWebhookTools,
+          menus: registerMenuTools,
+          files: registerFileTools,
+          apps: registerAppTools,
+          themes: registerThemeTools,
         };
 
         registerFns[group](s, c);
