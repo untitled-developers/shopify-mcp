@@ -59,9 +59,21 @@ const EXPECTED_TOOL_NAMES = [
   // draft orders (7)
   "list_draft_orders", "get_draft_order", "create_draft_order", "update_draft_order",
   "complete_draft_order", "send_draft_order_invoice", "delete_draft_order",
-  // discounts (8)
+  // discounts – legacy REST (8)
   "list_price_rules", "get_price_rule", "create_price_rule", "update_price_rule", "delete_price_rule",
   "list_discount_codes", "create_discount_code", "delete_discount_code",
+  // discounts – GraphQL code discounts (11)
+  "list_code_discounts", "get_code_discount",
+  "create_code_discount_basic", "update_code_discount_basic",
+  "create_code_discount_bxgy", "update_code_discount_bxgy",
+  "create_code_discount_free_shipping", "update_code_discount_free_shipping",
+  "activate_code_discount", "deactivate_code_discount", "delete_code_discount",
+  // discounts – GraphQL automatic discounts (11)
+  "list_automatic_discounts", "get_automatic_discount",
+  "create_automatic_discount_basic", "update_automatic_discount_basic",
+  "create_automatic_discount_bxgy", "update_automatic_discount_bxgy",
+  "create_automatic_discount_free_shipping", "update_automatic_discount_free_shipping",
+  "activate_automatic_discount", "deactivate_automatic_discount", "delete_automatic_discount",
   // fulfillments (5)
   "list_fulfillment_orders", "list_fulfillments", "create_fulfillment", "update_fulfillment_tracking", "cancel_fulfillment",
   // webhooks (5)
@@ -118,8 +130,8 @@ describe("Tool Registration", () => {
     registerPageTools(server, client);
   });
 
-  it("registers exactly 106 tools", () => {
-    expect(registeredTools).toHaveLength(106);
+  it("registers exactly 128 tools", () => {
+    expect(registeredTools).toHaveLength(128);
   });
 
   it("registers all expected tool names", () => {
@@ -143,7 +155,7 @@ describe("Tool Registration", () => {
       customers: 9,
       inventory: 5,
       "draft-orders": 7,
-      discounts: 8,
+      discounts: 30,
       fulfillments: 5,
       webhooks: 5,
       menus: 5,

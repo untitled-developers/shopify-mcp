@@ -4,7 +4,7 @@
 
 **[Website](https://untitled-developers.github.io/shopify-mcp)** | **[npm](https://www.npmjs.com/package/@kockatoos/shopify-mcp)** | **[GitHub](https://github.com/untitled-developers/shopify-mcp)**
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **80 tools** — using both REST and GraphQL under the hood.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **128 tools** — using both REST and GraphQL under the hood.
 
 ---
 
@@ -193,7 +193,9 @@ Then point your MCP client to the built output:
 | `send_draft_order_invoice` | Email the draft order invoice to the customer |
 | `delete_draft_order` | Delete a draft order |
 
-### Discounts (8)
+### Discounts — Legacy REST (8)
+
+These tools use the legacy REST Price Rules API and remain for backward compatibility.
 
 | Tool | Description |
 |------|-------------|
@@ -205,6 +207,42 @@ Then point your MCP client to the built output:
 | `list_discount_codes` | List discount codes for a price rule |
 | `create_discount_code` | Create a discount code for a price rule |
 | `delete_discount_code` | Delete a discount code |
+
+### Discounts — Code Discounts / GraphQL (11)
+
+Modern Shopify GraphQL discount API for code-based discounts (amount off, BXGY, free shipping).
+
+| Tool | Description |
+|------|-------------|
+| `list_code_discounts` | List code discounts (paginated, optional search query) |
+| `get_code_discount` | Get a code discount by GID or by code string |
+| `create_code_discount_basic` | Create an amount-off code discount |
+| `update_code_discount_basic` | Update an amount-off code discount |
+| `create_code_discount_bxgy` | Create a Buy X Get Y code discount |
+| `update_code_discount_bxgy` | Update a Buy X Get Y code discount |
+| `create_code_discount_free_shipping` | Create a free-shipping code discount |
+| `update_code_discount_free_shipping` | Update a free-shipping code discount |
+| `activate_code_discount` | Activate a code discount |
+| `deactivate_code_discount` | Deactivate a code discount |
+| `delete_code_discount` | Delete a code discount by GID |
+
+### Discounts — Automatic Discounts / GraphQL (11)
+
+Modern Shopify GraphQL discount API for automatic discounts (applied without a code).
+
+| Tool | Description |
+|------|-------------|
+| `list_automatic_discounts` | List automatic discounts (paginated, optional search query) |
+| `get_automatic_discount` | Get an automatic discount by GID |
+| `create_automatic_discount_basic` | Create an amount-off automatic discount |
+| `update_automatic_discount_basic` | Update an amount-off automatic discount |
+| `create_automatic_discount_bxgy` | Create a Buy X Get Y automatic discount |
+| `update_automatic_discount_bxgy` | Update a Buy X Get Y automatic discount |
+| `create_automatic_discount_free_shipping` | Create a free-shipping automatic discount |
+| `update_automatic_discount_free_shipping` | Update a free-shipping automatic discount |
+| `activate_automatic_discount` | Activate an automatic discount |
+| `deactivate_automatic_discount` | Deactivate an automatic discount |
+| `delete_automatic_discount` | Delete an automatic discount by GID |
 
 ### Fulfillments (5)
 
@@ -277,7 +315,7 @@ src/
     ├── customers.ts      # Customers & customer metafields
     ├── inventory.ts      # Locations & inventory levels
     ├── draft-orders.ts   # Draft orders
-    ├── discounts.ts      # Price rules & discount codes
+    ├── discounts.ts      # Legacy price rules (REST) + GraphQL code & automatic discounts
     ├── fulfillments.ts   # Fulfillments & tracking
     └── webhooks.ts       # Webhook management
 ```
