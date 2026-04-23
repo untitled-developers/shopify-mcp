@@ -180,6 +180,74 @@ export function registerFileTools(server: McpServer, client: ShopifyClient) {
     }
   );
 
+  // ── Stage upload ──────────────────────────────────────────────────
+  // Step 1 of Shopify's two-step upload flow:
+  //   1. Call stage_upload → get a pre-signed URL + parameters.
+  //   2. PUT/POST the file binary to that URL using the returned parameters.
+  //   3. Call create_file with the returned resourceUrl as original_source.
+  server.tool(
+    "stage_upload",
+    "Generate a pre-signed staged upload target for a file. This is step 1 of Shopify's two-step upload flow: (1) call this tool to get upload URL and parameters, (2) PUT/POST the file binary to that URL using the returned parameters as form fields or headers, (3) call create_file with the returned resourceUrl (not url) as original_source. Requires write_files access scope.",
+    {
+      filename: z.string().describe("Name of the file to upload (e.g. 'photo.jpg')."),
+      mime_type: z.string().describe("MIME type of the file (e.g. 'image/jpeg', 'video/mp4')."),
+      resource: z
+        .enum(["COLLECTION_IMAGE", "FILE", "IMAGE", "MODEL_3D", "VIDEO"])
+        .describe("Shopify resource type for the upload. Use IMAGE or FILE for general assets, VIDEO or MODEL_3D for media, COLLECTION_IMAGE for collection banners."),
+      file_size: z
+        .string()
+        .optional()
+        .describe("File size in bytes as a string (e.g. '204800'). Required for VIDEO and MODEL_3D resources."),
+      http_method: z
+        .enum(["POST", "PUT"])
+        .optional()
+        .describe("HTTP method to use when uploading to the staged URL. Default: PUT."),
+    },
+    async ({ filename, mime_type, resource, file_size, http_method }) => {
+      const input: Record<string, unknown> = {
+        filename,
+        mimeType: mime_type,
+        resource,
+        httpMethod: http_method ?? "PUT",
+      };
+      if (file_size !== undefined) input.fileSize = file_size;
+
+      const mutation = `
+        mutation StagedUploadsCreate($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              url
+              resourceUrl
+              parameters {
+                name
+                value
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        stagedUploadsCreate: {
+          stagedTargets: { url: string; resourceUrl: string; parameters: { name: string; value: string }[] }[];
+          userErrors: { field: string[]; message: string }[];
+        };
+      }>(mutation, { input: [input] });
+
+      if (data.stagedUploadsCreate.userErrors.length > 0) {
+        throw new Error(`stagedUploadsCreate errors: ${JSON.stringify(data.stagedUploadsCreate.userErrors)}`);
+      }
+
+      const target = data.stagedUploadsCreate.stagedTargets[0];
+      return {
+        content: [{ type: "text", text: JSON.stringify(target, null, 2) }],
+      };
+    }
+  );
+
   // ── Delete files ───────────────────────────────────────────────────
   server.tool(
     "delete_files",

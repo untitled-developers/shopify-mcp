@@ -21,6 +21,7 @@ import { registerFileTools } from "./tools/files.js";
 import { registerAppTools } from "./tools/apps.js";
 import { registerThemeTools } from "./tools/themes.js";
 import { registerPageTools } from "./tools/pages.js";
+import { registerBundleTools } from "./tools/bundles.js";
 
 async function main() {
   const config = loadConfig();
@@ -49,6 +50,7 @@ async function main() {
   registerAppTools(server, client);
   registerThemeTools(server, client);
   registerPageTools(server, client);
+  registerBundleTools(server, client);
 
   // Connect via stdio (standard MCP transport)
   const transport = new StdioServerTransport();

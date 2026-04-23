@@ -57,7 +57,7 @@ export function registerAppTools(server: McpServer, client: ShopifyClient) {
                 developerName
                 handle
                 icon { url }
-                pricingSummary
+                pricingDetailsSummary
                 privacyPolicyUrl
                 publicCategory
                 isPostPurchaseAppInUse
@@ -119,7 +119,7 @@ export function registerAppTools(server: McpServer, client: ShopifyClient) {
               developerName
               handle
               icon { url }
-              pricingSummary
+              pricingDetailsSummary
               privacyPolicyUrl
               publicCategory
               isPostPurchaseAppInUse

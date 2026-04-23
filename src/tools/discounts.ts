@@ -20,11 +20,17 @@ function buildCombinesWith(c?: { orderDiscounts?: boolean; productDiscounts?: bo
 }
 
 function buildDiscountItems(opts: { appliesToAll?: boolean; productIds?: string[]; collectionIds?: string[]; variantIds?: string[] }) {
-  if (opts.appliesToAll !== false) return { all: true };
+  if (opts.appliesToAll === true) return { all: true };
+  // If appliesToAll is undefined and no specific IDs are provided, default to all
+  if (opts.appliesToAll === undefined && !opts.productIds?.length && !opts.collectionIds?.length && !opts.variantIds?.length) return { all: true };
   const result: Record<string, unknown> = {};
   if (opts.collectionIds?.length) result.collections = { add: opts.collectionIds };
-  if (opts.productIds?.length) result.products = { add: opts.productIds };
-  if (opts.variantIds?.length) result.productVariants = { add: opts.variantIds };
+  if (opts.productIds?.length || opts.variantIds?.length) {
+    const products: Record<string, string[]> = {};
+    if (opts.productIds?.length) products.productsToAdd = opts.productIds;
+    if (opts.variantIds?.length) products.productVariantsToAdd = opts.variantIds;
+    result.products = products;
+  }
   return result;
 }
 
@@ -466,7 +472,7 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
       };
       if (endsAt) input.endsAt = endsAt;
       if (appliesOncePerCustomer !== undefined) input.appliesOncePerCustomer = appliesOncePerCustomer;
-      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = usesPerOrderLimit;
+      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = String(usesPerOrderLimit);
       const cw = buildCombinesWith(combinesWith);
       if (cw) input.combinesWith = cw;
 
@@ -520,21 +526,29 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
       if (startsAt) input.startsAt = startsAt;
       if (endsAt !== undefined) input.endsAt = endsAt;
       if (appliesOncePerCustomer !== undefined) input.appliesOncePerCustomer = appliesOncePerCustomer;
-      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = usesPerOrderLimit;
+      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = String(usesPerOrderLimit);
+      const hasBuyItems = buyAll !== undefined || !!buyProductIds?.length || !!buyCollectionIds?.length;
       if (buyQuantity) {
         input.customerBuys = {
-          items: buildDiscountItems({ appliesToAll: buyAll ?? (!buyProductIds?.length && !buyCollectionIds?.length), productIds: buyProductIds, collectionIds: buyCollectionIds }),
+          items: hasBuyItems ? buildDiscountItems({ appliesToAll: buyAll, productIds: buyProductIds, collectionIds: buyCollectionIds }) : undefined,
           value: { quantity: buyQuantity },
         };
+        if ((input.customerBuys as Record<string, unknown>).items === undefined) {
+          delete (input.customerBuys as Record<string, unknown>).items;
+        }
       }
+      const hasGetItems = getAll !== undefined || !!getProductIds?.length || !!getCollectionIds?.length;
       if (getQuantity && getDiscountType) {
         const getEffect = getDiscountType === "free"
           ? { percentage: 1.0 }
           : { percentage: (getDiscountPercentage ?? 0) / 100 };
         input.customerGets = {
-          items: buildDiscountItems({ appliesToAll: getAll ?? (!getProductIds?.length && !getCollectionIds?.length), productIds: getProductIds, collectionIds: getCollectionIds }),
+          items: hasGetItems ? buildDiscountItems({ appliesToAll: getAll, productIds: getProductIds, collectionIds: getCollectionIds }) : undefined,
           value: { discountOnQuantity: { quantity: getQuantity, effect: getEffect } },
         };
+        if ((input.customerGets as Record<string, unknown>).items === undefined) {
+          delete (input.customerGets as Record<string, unknown>).items;
+        }
       }
       const cw = buildCombinesWith(combinesWith);
       if (cw) input.combinesWith = cw;
@@ -955,7 +969,7 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
         customerGets: { items: getItems, value: { discountOnQuantity: { quantity: getQuantity, effect: getEffect } } },
       };
       if (endsAt) input.endsAt = endsAt;
-      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = usesPerOrderLimit;
+      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = String(usesPerOrderLimit);
       const cw = buildCombinesWith(combinesWith);
       if (cw) input.combinesWith = cw;
 
@@ -1005,21 +1019,29 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
       if (title) input.title = title;
       if (startsAt) input.startsAt = startsAt;
       if (endsAt !== undefined) input.endsAt = endsAt;
-      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = usesPerOrderLimit;
+      if (usesPerOrderLimit !== undefined) input.usesPerOrderLimit = String(usesPerOrderLimit);
+      const hasBuyItems = buyAll !== undefined || !!buyProductIds?.length || !!buyCollectionIds?.length;
       if (buyQuantity) {
         input.customerBuys = {
-          items: buildDiscountItems({ appliesToAll: buyAll ?? (!buyProductIds?.length && !buyCollectionIds?.length), productIds: buyProductIds, collectionIds: buyCollectionIds }),
+          items: hasBuyItems ? buildDiscountItems({ appliesToAll: buyAll, productIds: buyProductIds, collectionIds: buyCollectionIds }) : undefined,
           value: { quantity: buyQuantity },
         };
+        if ((input.customerBuys as Record<string, unknown>).items === undefined) {
+          delete (input.customerBuys as Record<string, unknown>).items;
+        }
       }
+      const hasGetItems = getAll !== undefined || !!getProductIds?.length || !!getCollectionIds?.length;
       if (getQuantity && getDiscountType) {
         const getEffect = getDiscountType === "free"
           ? { percentage: 1.0 }
           : { percentage: (getDiscountPercentage ?? 0) / 100 };
         input.customerGets = {
-          items: buildDiscountItems({ appliesToAll: getAll ?? (!getProductIds?.length && !getCollectionIds?.length), productIds: getProductIds, collectionIds: getCollectionIds }),
+          items: hasGetItems ? buildDiscountItems({ appliesToAll: getAll, productIds: getProductIds, collectionIds: getCollectionIds }) : undefined,
           value: { discountOnQuantity: { quantity: getQuantity, effect: getEffect } },
         };
+        if ((input.customerGets as Record<string, unknown>).items === undefined) {
+          delete (input.customerGets as Record<string, unknown>).items;
+        }
       }
       const cw = buildCombinesWith(combinesWith);
       if (cw) input.combinesWith = cw;

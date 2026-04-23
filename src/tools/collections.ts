@@ -146,6 +146,82 @@ export function registerCollectionTools(server: McpServer, client: ShopifyClient
     }
   );
 
+  // ── Update a smart collection ─────────────────────────────────────
+  server.tool(
+    "update_smart_collection",
+    "Update a smart (automatic) collection's sort order or other metadata. Only provided fields are changed.",
+    {
+      collection_id: z.string().describe("The numeric Shopify smart collection ID."),
+      title: z.string().optional().describe("New title."),
+      body_html: z.string().optional().describe("New HTML description."),
+      sort_order: z
+        .enum(["alpha-asc", "alpha-desc", "best-selling", "created", "created-desc", "manual", "price-asc", "price-desc"])
+        .optional()
+        .describe("New sort order for products in this collection."),
+    },
+    async ({ collection_id, title, body_html, sort_order }) => {
+      const collection: Record<string, unknown> = {};
+      if (title !== undefined) collection.title = title;
+      if (body_html !== undefined) collection.body_html = body_html;
+      if (sort_order !== undefined) collection.sort_order = sort_order;
+      const data = await client.request<{ smart_collection: unknown }>(`smart_collections/${collection_id}.json`, {
+        method: "PUT",
+        body: { smart_collection: collection },
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(data.smart_collection, null, 2) }],
+      };
+    }
+  );
+
+  // ── Reorder products in a custom collection ───────────────────────
+  server.tool(
+    "reorder_collection_products",
+    "Reorder products in a custom collection. Provide an ordered array of product IDs — each product is assigned position 1…N in that order. The collection's sort_order must be 'manual' for positions to be honoured on the storefront. Only the products you list are repositioned; others keep their current positions.",
+    {
+      collection_id: z.string().describe("The numeric Shopify custom collection ID."),
+      product_ids: z
+        .array(z.string())
+        .min(1)
+        .describe("Ordered list of product IDs. The first ID gets position 1, the second gets position 2, and so on."),
+    },
+    async ({ collection_id, product_ids }) => {
+      interface Collect { id: number; product_id: number }
+      const allCollects: Collect[] = [];
+      let since_id: string | undefined;
+      // Paginate through all collects using since_id (REST cursor)
+      do {
+        const page = await client.request<{ collects: Collect[] }>("collects.json", {
+          params: { collection_id, limit: 250, ...(since_id ? { since_id } : {}) },
+        });
+        allCollects.push(...page.collects);
+        if (page.collects.length < 250) break;
+        since_id = String(page.collects[page.collects.length - 1].id);
+      } while (true);
+
+      const collectMap = new Map(allCollects.map((c) => [String(c.product_id), c.id]));
+
+      const missing = product_ids.filter((pid) => !collectMap.has(pid));
+      if (missing.length > 0) {
+        throw new Error(`Products not found in collection ${collection_id}: ${missing.join(", ")}`);
+      }
+
+      const updated: { collect_id: number; product_id: string; position: number }[] = [];
+      for (let i = 0; i < product_ids.length; i++) {
+        const collectId = collectMap.get(product_ids[i])!;
+        await client.request(`collects/${collectId}.json`, {
+          method: "PUT",
+          body: { collect: { id: collectId, position: i + 1 } },
+        });
+        updated.push({ collect_id: collectId, product_id: product_ids[i], position: i + 1 });
+      }
+
+      return {
+        content: [{ type: "text", text: JSON.stringify({ reordered: updated.length, items: updated }, null, 2) }],
+      };
+    }
+  );
+
   // ── Add product to collection ─────────────────────────────────────
   server.tool(
     "add_product_to_collection",
