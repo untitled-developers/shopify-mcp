@@ -45,9 +45,9 @@ const EXPECTED_TOOL_NAMES = [
   "list_product_images", "get_product_image", "create_product_image", "update_product_image", "delete_product_image",
   // variants (5)
   "list_variants", "get_variant", "create_variant", "update_variant", "delete_variant",
-  // collections (12)
+  // collections (13)
   "list_custom_collections", "list_smart_collections", "get_custom_collection", "get_smart_collection",
-  "create_custom_collection", "update_custom_collection", "delete_custom_collection",
+  "create_custom_collection", "create_smart_collection", "update_custom_collection", "delete_custom_collection",
   "update_smart_collection", "reorder_collection_products",
   "add_product_to_collection", "remove_product_from_collection", "list_collection_products",
   // orders (9)
@@ -135,8 +135,8 @@ describe("Tool Registration", () => {
     registerBundleTools(server, client);
   });
 
-  it("registers exactly 135 tools", () => {
-    expect(registeredTools).toHaveLength(135);
+  it("registers exactly 136 tools", () => {
+    expect(registeredTools).toHaveLength(136);
   });
 
   it("registers all expected tool names", () => {
@@ -155,7 +155,7 @@ describe("Tool Registration", () => {
       products: 11,
       images: 5,
       variants: 5,
-      collections: 12,
+      collections: 13,
       orders: 9,
       customers: 9,
       inventory: 5,

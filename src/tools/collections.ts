@@ -8,7 +8,7 @@ export function registerCollectionTools(server: McpServer, client: ShopifyClient
     "list_custom_collections",
     "List custom (manual) collections. These are collections where the merchant manually selects which products to include.",
     {
-      limit: z.number().min(1).max(250).default(10).describe("Number of collections to return (1–250). Default: 10."),
+      limit: z.number().min(1).max(250).default(250).describe("Number of collections to return (1–250). Default: 250."),
       since_id: z.string().optional().describe("Return collections after this ID."),
       title: z.string().optional().describe("Filter by exact title match."),
       product_id: z.string().optional().describe("Filter collections that contain this product ID."),
@@ -29,7 +29,7 @@ export function registerCollectionTools(server: McpServer, client: ShopifyClient
     "list_smart_collections",
     "List smart (automatic) collections. These are collections where products are automatically included based on rules.",
     {
-      limit: z.number().min(1).max(250).default(10).describe("Number of collections to return (1–250). Default: 10."),
+      limit: z.number().min(1).max(250).default(250).describe("Number of collections to return (1–250). Default: 250."),
       since_id: z.string().optional().describe("Return collections after this ID."),
       title: z.string().optional().describe("Filter by exact title match."),
       product_id: z.string().optional().describe("Filter collections that contain this product ID."),
@@ -142,6 +142,37 @@ export function registerCollectionTools(server: McpServer, client: ShopifyClient
       await client.request(`custom_collections/${collection_id}.json`, { method: "DELETE" });
       return {
         content: [{ type: "text", text: `Custom collection ${collection_id} deleted successfully.` }],
+      };
+    }
+  );
+
+  // ── Create a smart collection ─────────────────────────────────────
+  server.tool(
+    "create_smart_collection",
+    "Create a new smart (automatic) collection with rules that determine which products are included.",
+    {
+      title: z.string().describe("Collection title (required)."),
+      body_html: z.string().optional().describe("Collection description in HTML."),
+      published: z.boolean().default(true).describe("Whether the collection is visible. Default: true."),
+      disjunctive: z.boolean().default(false).describe("If true, products matching ANY rule are included. If false (default), ALL rules must match."),
+      sort_order: z.enum(["alpha-asc", "alpha-desc", "best-selling", "created", "created-desc", "manual", "price-asc", "price-desc"]).optional().describe("Sort order for products in the collection."),
+      rules: z.array(z.object({
+        column: z.enum(["title", "type", "vendor", "tag", "variant_price", "variant_weight", "inventory_stock", "is_price_reduced"]).describe("The product attribute to match against."),
+        relation: z.enum(["equals", "not_equals", "greater_than", "less_than", "starts_with", "ends_with", "contains", "not_contains", "is_set", "is_not_set"]).describe("The comparison operator."),
+        condition: z.string().describe("The value to compare against."),
+      })).optional().describe("Rules that determine which products are included. Each rule has column, relation, and condition."),
+    },
+    async ({ title, body_html, published, disjunctive, sort_order, rules }) => {
+      const collection: Record<string, unknown> = { title, published, disjunctive };
+      if (body_html) collection.body_html = body_html;
+      if (sort_order) collection.sort_order = sort_order;
+      if (rules) collection.rules = rules;
+      const data = await client.request<{ smart_collection: unknown }>("smart_collections.json", {
+        method: "POST",
+        body: { smart_collection: collection },
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(data.smart_collection, null, 2) }],
       };
     }
   );

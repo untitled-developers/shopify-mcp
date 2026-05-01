@@ -13,7 +13,8 @@
   },
   "main": "dist/index.js",
   "bin": {
-    "kockatoos-shopify-mcp": "dist/index.js"
+    "kockatoos-shopify-mcp": "dist/index.js",
+    "shopify-mcp-get-token": "dist/get-token.js"
   },
   "files": [
     "dist",
@@ -23,6 +24,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "get-token": "node dist/get-token.js",
     "dev": "npx ts-node src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"

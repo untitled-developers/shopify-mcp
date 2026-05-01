@@ -1,37 +1,25 @@
 import { ShopifyConfig } from "./config.js";
 
-let cachedToken: string | null = null;
-let tokenExpiresAt = 0;
-
 /**
- * Obtains an access token using the client_credentials grant.
- * Caches the token and refreshes it when expired.
+ * Returns the Shopify Admin API access token.
+ *
+ * If SHOPIFY_ACCESS_TOKEN is set (partner dashboard apps), it is used directly.
+ * Otherwise falls back to the client_credentials OAuth grant (store-created custom apps).
  */
 export async function getAccessToken(config: ShopifyConfig): Promise<string> {
-  const now = Date.now();
-  if (cachedToken && now < tokenExpiresAt) {
-    return cachedToken;
+  // Direct access token — no OAuth needed (partner dashboard / store custom apps)
+  if (config.accessToken) {
+    return config.accessToken;
   }
 
-  const shop = `${config.storeName}.myshopify.com`;
-  const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      grant_type: "client_credentials",
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Shopify token request failed (${res.status}): ${body}`);
-  }
-
-  const data = (await res.json()) as { access_token: string };
-  cachedToken = data.access_token;
-  // Refresh 5 minutes before assumed 24h expiry
-  tokenExpiresAt = now + 23 * 60 * 60 * 1000;
-  return cachedToken;
+  // No SHOPIFY_ACCESS_TOKEN set — client_credentials grant only works for
+  // store-created custom apps (admin-created). Partner Dashboard apps require
+  // the authorization code grant flow. Direct the user to run the helper.
+  throw new Error(
+    "Authentication failed: SHOPIFY_ACCESS_TOKEN is not set.\n\n" +
+    "Partner Dashboard apps cannot use the client_credentials grant.\n" +
+    "Run the one-time OAuth helper to get your access token:\n\n" +
+    "  node /path/to/shopify-mcp/dist/get-token.js\n\n" +
+    "Then add SHOPIFY_ACCESS_TOKEN=<token> to your .env file and restart the MCP server."
+  );
 }

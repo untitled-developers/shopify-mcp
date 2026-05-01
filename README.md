@@ -24,7 +24,54 @@ npx @kockatoos/shopify-mcp
 
 ## Quick Start
 
-### Using npx (recommended)
+### Step 1 — Create a Shopify app
+
+You need a Shopify app with an access token to authenticate. There are two types:
+
+#### Option A: Admin-created custom app (simplest)
+
+1. Go to **Shopify Admin → Settings → Apps and sales channels → Develop apps**
+2. Create an app, configure the required Admin API scopes, and click **Install app**
+3. Copy the **Admin API access token** shown once after installation
+
+Use it directly in your MCP config:
+
+```json
+{
+  "mcpServers": {
+    "kockatoos-shopify-mcp": {
+      "command": "npx",
+      "args": ["-y", "@kockatoos/shopify-mcp"],
+      "env": {
+        "SHOPIFY_STORE_NAME": "your-store-name",
+        "SHOPIFY_ACCESS_TOKEN": "shpat_xxxxxxxxxxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+#### Option B: Partner Dashboard app
+
+Partner Dashboard apps use OAuth and don't expose an access token in the UI. Run the one-time token helper to get a permanent offline access token:
+
+```bash
+# With npm install
+SHOPIFY_CLIENT_ID=xxx SHOPIFY_CLIENT_SECRET=yyy SHOPIFY_STORE_NAME=zzz \
+  npx shopify-mcp-get-token
+
+# Or if you cloned the repo
+SHOPIFY_CLIENT_ID=xxx SHOPIFY_CLIENT_SECRET=yyy SHOPIFY_STORE_NAME=zzz \
+  npm run get-token
+```
+
+> **Before running:** add `http://localhost:3456/callback` to your app's **Allowed Redirect URLs** in the Partner Dashboard (App setup → URLs).
+
+This opens a browser, completes the OAuth flow, and prints your access token. Then use it in your MCP config the same way as Option A.
+
+---
+
+### Step 2 — Configure your MCP client
 
 Add this to your MCP client configuration (e.g. `claude_desktop_config.json`, `.vscode/mcp.json`, or equivalent):
 
@@ -36,8 +83,7 @@ Add this to your MCP client configuration (e.g. `claude_desktop_config.json`, `.
       "args": ["-y", "@kockatoos/shopify-mcp"],
       "env": {
         "SHOPIFY_STORE_NAME": "your-store-name",
-        "SHOPIFY_CLIENT_ID": "your-client-id",
-        "SHOPIFY_CLIENT_SECRET": "your-client-secret"
+        "SHOPIFY_ACCESS_TOKEN": "shpat_xxxxxxxxxxxxxxxxxxxx"
       }
     }
   }
@@ -63,8 +109,7 @@ Then point your MCP client to the built output:
       "args": ["/absolute/path/to/shopify-mcp/dist/index.js"],
       "env": {
         "SHOPIFY_STORE_NAME": "your-store-name",
-        "SHOPIFY_CLIENT_ID": "your-client-id",
-        "SHOPIFY_CLIENT_SECRET": "your-client-secret"
+        "SHOPIFY_ACCESS_TOKEN": "shpat_xxxxxxxxxxxxxxxxxxxx"
       }
     }
   }
@@ -75,12 +120,11 @@ Then point your MCP client to the built output:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SHOPIFY_STORE_NAME` | Yes | Your store name (just the name, not the full `.myshopify.com` domain) |
-| `SHOPIFY_CLIENT_ID` | Yes | App client ID |
-| `SHOPIFY_CLIENT_SECRET` | Yes | App client secret |
+| `SHOPIFY_STORE_NAME` | Yes | Your store subdomain (e.g. `my-store`, not the full `.myshopify.com`) |
+| `SHOPIFY_ACCESS_TOKEN` | Yes* | Permanent access token (from admin-created app or Partner Dashboard OAuth flow) |
 | `SHOPIFY_API_VERSION` | No | API version (defaults to `2026-01`) |
 
-> **Where to find these:** Shopify Admin → Settings → Apps and sales channels → Develop apps → Your app → API credentials.
+> \* `SHOPIFY_CLIENT_ID` + `SHOPIFY_CLIENT_SECRET` can be used instead of `SHOPIFY_ACCESS_TOKEN` only for admin-created custom apps (store-only, no Partner Dashboard support).
 
 ---
 

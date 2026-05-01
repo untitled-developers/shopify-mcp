@@ -34,18 +34,29 @@ export class ShopifyClient {
       if (qsStr) url += `?${qsStr}`;
     }
 
-    const res = await fetch(url, {
-      method,
-      headers: {
-        "X-Shopify-Access-Token": token,
-        "Content-Type": "application/json",
-      },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers: {
+          "X-Shopify-Access-Token": token,
+          "Content-Type": "application/json",
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const error = new Error(`Network error on ${method} ${endpoint}: ${msg}`);
+      process.stderr.write(`[shopify-mcp] ${error.message}\n`);
+      throw error;
+    }
 
     if (!res.ok) {
       const errBody = await res.text();
-      throw new Error(`Shopify API error ${res.status} on ${method} ${endpoint}: ${errBody}`);
+      const error = new Error(`Shopify API error ${res.status} on ${method} ${endpoint}: ${errBody}`);
+      process.stderr.write(`[shopify-mcp] ${error.message}\n`);
+      throw error;
     }
 
     // DELETE returns 200 with empty body
@@ -62,23 +73,36 @@ export class ShopifyClient {
     const token = await getAccessToken(this.config);
     const url = `${this.baseUrl}/graphql.json`;
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "X-Shopify-Access-Token": token,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query, variables }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "X-Shopify-Access-Token": token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query, variables }),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const error = new Error(`Network error on GraphQL request: ${msg}`);
+      process.stderr.write(`[shopify-mcp] ${error.message}\n`);
+      throw error;
+    }
 
     if (!res.ok) {
       const errBody = await res.text();
-      throw new Error(`Shopify GraphQL error ${res.status}: ${errBody}`);
+      const error = new Error(`Shopify GraphQL error ${res.status}: ${errBody}`);
+      process.stderr.write(`[shopify-mcp] ${error.message}\n`);
+      throw error;
     }
 
     const json = (await res.json()) as { data?: T; errors?: unknown[] };
     if (json.errors) {
-      throw new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
+      const error = new Error(`Shopify GraphQL errors: ${JSON.stringify(json.errors)}`);
+      process.stderr.write(`[shopify-mcp] ${error.message}\n`);
+      throw error;
     }
     return json.data as T;
   }
