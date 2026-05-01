@@ -8,7 +8,21 @@ export function registerShopTools(server: McpServer, client: ShopifyClient) {
     "Get basic information about the Shopify store: name, domain, email, plan, currency, timezone, and more.",
     {},
     async () => {
-      const data = await client.request<{ shop: Record<string, unknown> }>("shop.json");
+      const query = `
+        query GetShopInfo {
+          shop {
+            name
+            myshopifyDomain
+            primaryDomain { url host }
+            email
+            plan { publicDisplayName partnerDevelopment }
+            currencyCode
+            timezoneAbbreviation
+            ianaTimezone
+          }
+        }
+      `;
+      const data = await client.graphql<{ shop: Record<string, unknown> }>(query);
       return {
         content: [{ type: "text", text: JSON.stringify(data.shop, null, 2) }],
       };

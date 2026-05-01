@@ -57,22 +57,72 @@ const AUTO_DISCOUNT_INLINE = `
   ... on DiscountAutomaticFreeShipping { title status startsAt endsAt }
 `;
 
+function discountNodeGid(id: string) {
+  return id.startsWith("gid://") ? id : `gid://shopify/DiscountCodeNode/${id}`;
+}
+
+function redeemCodeGid(id: string) {
+  return id.startsWith("gid://") ? id : `gid://shopify/DiscountRedeemCode/${id}`;
+}
+
+function legacyCode(title: string) {
+  return title.trim().replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase() || "DISCOUNT";
+}
+
+function legacyBasicDiscountInput(args: {
+  title?: string;
+  value?: string;
+  value_type?: "percentage" | "fixed_amount";
+  starts_at?: string;
+  ends_at?: string;
+  usage_limit?: number;
+  once_per_customer?: boolean;
+  code?: string;
+}) {
+  const valueNumber = args.value ? Math.abs(Number(args.value)) : undefined;
+  const input: Record<string, unknown> = {};
+  if (args.title) input.title = args.title;
+  if (args.code) input.code = args.code;
+  if (args.starts_at) input.startsAt = args.starts_at;
+  if (args.ends_at !== undefined) input.endsAt = args.ends_at;
+  if (args.usage_limit !== undefined) input.usageLimit = args.usage_limit;
+  if (args.once_per_customer !== undefined) input.appliesOncePerCustomer = args.once_per_customer;
+  if (args.value_type && valueNumber !== undefined) {
+    input.customerGets = {
+      value: args.value_type === "percentage"
+        ? { percentage: valueNumber / 100 }
+        : { discountAmount: { amount: String(valueNumber), appliesOnEachItem: false } },
+      items: { all: true },
+    };
+  }
+  return input;
+}
+
 export function registerDiscountTools(server: McpServer, client: ShopifyClient) {
   // ── List price rules ──────────────────────────────────────────────
   server.tool(
     "list_price_rules",
-    "List all price rules in the store. Price rules are the foundation for discount codes.",
+    "List code discounts using the Admin GraphQL API. This compatibility tool replaces the older Price Rules workflow.",
     {
       limit: z.number().min(1).max(250).default(10).describe("Number of price rules to return (1–250). Default: 10."),
       since_id: z.string().optional().describe("Return price rules after this ID."),
       page_info: z.string().optional().describe("Cursor for pagination."),
     },
-    async ({ limit, since_id, page_info }) => {
-      const data = await client.request<{ price_rules: unknown[] }>("price_rules.json", {
-        params: { limit, since_id, page_info },
-      });
+    async ({ limit, page_info }) => {
+      const gql = `
+        query ListLegacyPriceRules($first: Int!, $after: String) {
+          codeDiscountNodes(first: $first, after: $after) {
+            nodes {
+              id
+              codeDiscount { ${CODE_DISCOUNT_INLINE} }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `;
+      const data = await client.graphql<{ codeDiscountNodes: { nodes: unknown[]; pageInfo: unknown } }>(gql, { first: limit, after: page_info ?? null });
       return {
-        content: [{ type: "text", text: JSON.stringify(data.price_rules, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ price_rules: data.codeDiscountNodes.nodes, pageInfo: data.codeDiscountNodes.pageInfo }, null, 2) }],
       };
     }
   );
@@ -80,14 +130,22 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── Get a price rule ──────────────────────────────────────────────
   server.tool(
     "get_price_rule",
-    "Get full details of a single price rule by its ID.",
+    "Get a code discount by DiscountCodeNode ID. This compatibility tool replaces the older Price Rules workflow.",
     {
       price_rule_id: z.string().describe("The numeric Shopify price rule ID."),
     },
     async ({ price_rule_id }) => {
-      const data = await client.request<{ price_rule: unknown }>(`price_rules/${price_rule_id}.json`);
+      const gql = `
+        query GetLegacyPriceRule($id: ID!) {
+          discountNode(id: $id) {
+            id
+            discount { ${CODE_DISCOUNT_INLINE} }
+          }
+        }
+      `;
+      const data = await client.graphql<{ discountNode: unknown }>(gql, { id: discountNodeGid(price_rule_id) });
       return {
-        content: [{ type: "text", text: JSON.stringify(data.price_rule, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.discountNode, null, 2) }],
       };
     }
   );
@@ -95,7 +153,7 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── Create a price rule ───────────────────────────────────────────
   server.tool(
     "create_price_rule",
-    "Create a new price rule for discount codes. Supports percentage, fixed amount, or free shipping discounts.",
+    "Create a modern basic code discount through GraphQL. Preserves the legacy price-rule tool name for compatibility.",
     {
       title: z.string().describe("Price rule title (internal name)."),
       target_type: z.enum(["line_item", "shipping_line"]).describe("What the discount applies to."),
@@ -110,17 +168,22 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
       once_per_customer: z.boolean().default(false).describe("Limit to one use per customer. Default: false."),
     },
     async ({ title, target_type, target_selection, allocation_method, value_type, value, customer_selection, starts_at, ends_at, usage_limit, once_per_customer }) => {
-      const price_rule: Record<string, unknown> = {
-        title, target_type, target_selection, allocation_method, value_type, value, customer_selection, starts_at, once_per_customer,
+      const input = {
+        ...legacyBasicDiscountInput({ title, code: legacyCode(title), value, value_type, starts_at, ends_at, usage_limit, once_per_customer }),
+        customerSelection: { all: customer_selection === "all" },
       };
-      if (ends_at) price_rule.ends_at = ends_at;
-      if (usage_limit !== undefined) price_rule.usage_limit = usage_limit;
-      const data = await client.request<{ price_rule: unknown }>("price_rules.json", {
-        method: "POST",
-        body: { price_rule },
-      });
+      const gql = `
+        mutation LegacyPriceRuleCreate($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { title status startsAt endsAt usageLimit appliesOncePerCustomer codes(first: 10) { nodes { id code } } } } }
+            userErrors { field code message }
+          }
+        }
+      `;
+      const data = await client.graphql<{ discountCodeBasicCreate: { codeDiscountNode: unknown; userErrors: { field?: string[] | null; code?: string | null; message: string }[] } }>(gql, { input });
+      throwOnUserErrors(data.discountCodeBasicCreate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.price_rule, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.discountCodeBasicCreate.codeDiscountNode, null, 2) }],
       };
     }
   );
@@ -128,7 +191,7 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── Update a price rule ───────────────────────────────────────────
   server.tool(
     "update_price_rule",
-    "Update an existing price rule. Only provided fields are changed.",
+    "Update a modern basic code discount through GraphQL. Preserves the legacy price-rule tool name for compatibility.",
     {
       price_rule_id: z.string().describe("The numeric price rule ID."),
       title: z.string().optional().describe("New title."),
@@ -139,16 +202,19 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
       once_per_customer: z.boolean().optional().describe("Limit one per customer."),
     },
     async ({ price_rule_id, ...fields }) => {
-      const price_rule: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v !== undefined) price_rule[k] = v;
-      }
-      const data = await client.request<{ price_rule: unknown }>(`price_rules/${price_rule_id}.json`, {
-        method: "PUT",
-        body: { price_rule },
-      });
+      const input = legacyBasicDiscountInput(fields);
+      const gql = `
+        mutation LegacyPriceRuleUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { title status startsAt endsAt usageLimit appliesOncePerCustomer codes(first: 10) { nodes { id code } } } } }
+            userErrors { field code message }
+          }
+        }
+      `;
+      const data = await client.graphql<{ discountCodeBasicUpdate: { codeDiscountNode: unknown; userErrors: { field?: string[] | null; code?: string | null; message: string }[] } }>(gql, { id: discountNodeGid(price_rule_id), input });
+      throwOnUserErrors(data.discountCodeBasicUpdate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.price_rule, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.discountCodeBasicUpdate.codeDiscountNode, null, 2) }],
       };
     }
   );
@@ -156,14 +222,16 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── Delete a price rule ───────────────────────────────────────────
   server.tool(
     "delete_price_rule",
-    "Permanently delete a price rule and all its associated discount codes.",
+    "Delete a code discount by DiscountCodeNode ID. Preserves the legacy price-rule tool name for compatibility.",
     {
       price_rule_id: z.string().describe("The numeric price rule ID to delete."),
     },
     async ({ price_rule_id }) => {
-      await client.request(`price_rules/${price_rule_id}.json`, { method: "DELETE" });
+      const gql = `mutation DiscountCodeDelete($id: ID!) { discountCodeDelete(id: $id) { deletedCodeDiscountId userErrors { field code message } } }`;
+      const data = await client.graphql<{ discountCodeDelete: { deletedCodeDiscountId: string | null; userErrors: { field?: string[] | null; code?: string | null; message: string }[] } }>(gql, { id: discountNodeGid(price_rule_id) });
+      throwOnUserErrors(data.discountCodeDelete.userErrors);
       return {
-        content: [{ type: "text", text: `Price rule ${price_rule_id} deleted successfully.` }],
+        content: [{ type: "text", text: `Price rule ${data.discountCodeDelete.deletedCodeDiscountId ?? price_rule_id} deleted successfully.` }],
       };
     }
   );
@@ -171,18 +239,29 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── List discount codes for a price rule ──────────────────────────
   server.tool(
     "list_discount_codes",
-    "List all discount codes for a specific price rule.",
+    "List redeem codes for a GraphQL code discount node.",
     {
       price_rule_id: z.string().describe("The price rule ID."),
       limit: z.number().min(1).max(250).default(50).describe("Number of codes to return. Default: 50."),
       page_info: z.string().optional().describe("Cursor for pagination."),
     },
     async ({ price_rule_id, limit, page_info }) => {
-      const data = await client.request<{ discount_codes: unknown[] }>(`price_rules/${price_rule_id}/discount_codes.json`, {
-        params: { limit, page_info },
-      });
+      const gql = `
+        query ListLegacyDiscountCodes($id: ID!, $first: Int!, $after: String) {
+          discountNode(id: $id) {
+            id
+            discount {
+              ... on DiscountCodeBasic { codes(first: $first, after: $after) { nodes { id code asyncUsageCount } pageInfo { hasNextPage endCursor } } }
+              ... on DiscountCodeBxgy { codes(first: $first, after: $after) { nodes { id code asyncUsageCount } pageInfo { hasNextPage endCursor } } }
+              ... on DiscountCodeFreeShipping { codes(first: $first, after: $after) { nodes { id code asyncUsageCount } pageInfo { hasNextPage endCursor } } }
+            }
+          }
+        }
+      `;
+      const data = await client.graphql<{ discountNode: { discount: { codes?: { nodes: unknown[]; pageInfo: unknown } } } }>(gql, { id: discountNodeGid(price_rule_id), first: limit, after: page_info ?? null });
+      const codes = data.discountNode.discount.codes;
       return {
-        content: [{ type: "text", text: JSON.stringify(data.discount_codes, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ discount_codes: codes?.nodes ?? [], pageInfo: codes?.pageInfo ?? null }, null, 2) }],
       };
     }
   );
@@ -190,18 +269,24 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── Create a discount code ────────────────────────────────────────
   server.tool(
     "create_discount_code",
-    "Create a new discount code for a price rule.",
+    "Set the customer-facing code for a basic GraphQL code discount node.",
     {
       price_rule_id: z.string().describe("The price rule ID this code belongs to."),
       code: z.string().describe("The discount code string that customers enter at checkout (e.g. 'SAVE10')."),
     },
     async ({ price_rule_id, code }) => {
-      const data = await client.request<{ discount_code: unknown }>(`price_rules/${price_rule_id}/discount_codes.json`, {
-        method: "POST",
-        body: { discount_code: { code } },
-      });
+      const gql = `
+        mutation LegacyDiscountCodeUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+          discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+            codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { codes(first: 10) { nodes { id code } } } } }
+            userErrors { field code message }
+          }
+        }
+      `;
+      const data = await client.graphql<{ discountCodeBasicUpdate: { codeDiscountNode: unknown; userErrors: { field?: string[] | null; code?: string | null; message: string }[] } }>(gql, { id: discountNodeGid(price_rule_id), input: { code } });
+      throwOnUserErrors(data.discountCodeBasicUpdate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.discount_code, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.discountCodeBasicUpdate.codeDiscountNode, null, 2) }],
       };
     }
   );
@@ -209,15 +294,17 @@ export function registerDiscountTools(server: McpServer, client: ShopifyClient) 
   // ── Delete a discount code ────────────────────────────────────────
   server.tool(
     "delete_discount_code",
-    "Delete a discount code.",
+    "Delete a redeem code from a GraphQL code discount node.",
     {
       price_rule_id: z.string().describe("The price rule ID."),
       discount_code_id: z.string().describe("The discount code ID to delete."),
     },
     async ({ price_rule_id, discount_code_id }) => {
-      await client.request(`price_rules/${price_rule_id}/discount_codes/${discount_code_id}.json`, { method: "DELETE" });
+      const gql = `mutation DiscountCodeRedeemCodeBulkDelete($discountId: ID!, $ids: [ID!]!) { discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) { job { id done } userErrors { field code message } } }`;
+      const data = await client.graphql<{ discountCodeRedeemCodeBulkDelete: { job: unknown; userErrors: { field?: string[] | null; code?: string | null; message: string }[] } }>(gql, { discountId: discountNodeGid(price_rule_id), ids: [redeemCodeGid(discount_code_id)] });
+      throwOnUserErrors(data.discountCodeRedeemCodeBulkDelete.userErrors);
       return {
-        content: [{ type: "text", text: `Discount code ${discount_code_id} deleted successfully.` }],
+        content: [{ type: "text", text: JSON.stringify(data.discountCodeRedeemCodeBulkDelete.job, null, 2) }],
       };
     }
   );

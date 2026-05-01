@@ -61,7 +61,7 @@ const EXPECTED_TOOL_NAMES = [
   // draft orders (7)
   "list_draft_orders", "get_draft_order", "create_draft_order", "update_draft_order",
   "complete_draft_order", "send_draft_order_invoice", "delete_draft_order",
-  // discounts – legacy REST (8)
+  // discounts - compatibility wrappers (8)
   "list_price_rules", "get_price_rule", "create_price_rule", "update_price_rule", "delete_price_rule",
   "list_discount_codes", "create_discount_code", "delete_discount_code",
   // discounts – GraphQL code discounts (11)
@@ -111,7 +111,7 @@ describe("Tool Registration", () => {
     const originalTool = server.tool.bind(server);
     server.tool = ((...args: any[]) => {
       registeredTools.push(args[0]);
-      return originalTool(...args);
+      return (originalTool as any)(...args);
     }) as any;
 
     // Register all tool groups
@@ -178,7 +178,7 @@ describe("Tool Registration", () => {
         const c = new ShopifyClient(testConfig);
         const names: string[] = [];
         const orig = s.tool.bind(s);
-        s.tool = ((...a: any[]) => { names.push(a[0]); return orig(...a); }) as any;
+        s.tool = ((...a: any[]) => { names.push(a[0]); return (orig as any)(...a); }) as any;
 
         const registerFns: Record<string, Function> = {
           shop: registerShopTools,
@@ -223,7 +223,7 @@ describe("stage_upload handler", () => {
     const orig = s.tool.bind(s);
     s.tool = ((...args: any[]) => {
       handlers[args[0]] = args[args.length - 1];
-      return orig(...args);
+      return (orig as any)(...args);
     }) as any;
     registerFileTools(s, c);
     return { client: c, handler: handlers["stage_upload"] };
@@ -328,32 +328,37 @@ describe("update_smart_collection handler", () => {
     return { client: c, handler: tool.handler.bind(tool) as (args: unknown) => Promise<{ content: { text: string }[] }> };
   }
 
-  it("sends PUT to smart_collections endpoint with only provided fields", async () => {
+  it("calls collectionUpdate with mapped sortOrder", async () => {
     const { client, handler } = buildServerWithHandler();
-    const spy = vi.spyOn(client, "request").mockResolvedValueOnce({ smart_collection: { id: 42, sort_order: "best-selling" } });
+    const updated = { id: "gid://shopify/Collection/42", sortOrder: "BEST_SELLING" };
+    const spy = vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionUpdate: { collection: updated, userErrors: [] } });
     await handler({ collection_id: "42", sort_order: "best-selling" });
-    expect(spy).toHaveBeenCalledWith(
-      "smart_collections/42.json",
-      expect.objectContaining({ method: "PUT", body: { smart_collection: { sort_order: "best-selling" } } })
-    );
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("collectionUpdate"), expect.objectContaining({
+      input: expect.objectContaining({ id: "gid://shopify/Collection/42", sortOrder: "BEST_SELLING" }),
+    }));
   });
 
   it("omits fields not provided", async () => {
     const { client, handler } = buildServerWithHandler();
-    const spy = vi.spyOn(client, "request").mockResolvedValueOnce({ smart_collection: { id: 42 } });
+    const spy = vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionUpdate: { collection: { id: "gid://shopify/Collection/42" }, userErrors: [] } });
     await handler({ collection_id: "42", title: "New Title" });
-    expect(spy).toHaveBeenCalledWith(
-      "smart_collections/42.json",
-      expect.objectContaining({ body: { smart_collection: { title: "New Title" } } })
-    );
+    expect(spy).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      input: { id: "gid://shopify/Collection/42", title: "New Title" },
+    }));
   });
 
-  it("returns the updated smart_collection data", async () => {
+  it("returns the updated collection data", async () => {
     const { client, handler } = buildServerWithHandler();
-    const updated = { id: 42, title: "Shoes", sort_order: "manual" };
-    vi.spyOn(client, "request").mockResolvedValueOnce({ smart_collection: updated });
+    const updated = { id: "gid://shopify/Collection/42", title: "Shoes", sortOrder: "MANUAL" };
+    vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionUpdate: { collection: updated, userErrors: [] } });
     const result = await handler({ collection_id: "42", title: "Shoes", sort_order: "manual" });
     expect(JSON.parse(result.content[0].text)).toEqual(updated);
+  });
+
+  it("throws when userErrors are returned", async () => {
+    const { client, handler } = buildServerWithHandler();
+    vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionUpdate: { collection: null, userErrors: [{ field: ["sortOrder"], message: "is invalid" }] } });
+    await expect(handler({ collection_id: "42", sort_order: "manual" })).rejects.toThrow("collectionUpdate errors: is invalid");
   });
 });
 
@@ -373,47 +378,28 @@ describe("reorder_collection_products handler", () => {
     return { client: c, handler: tool.handler.bind(tool) as (args: unknown) => Promise<{ content: { text: string }[] }> };
   }
 
-  it("fetches collects and assigns positions in order", async () => {
+  it("calls collectionReorderProducts with product GIDs and zero-based positions", async () => {
     const { client, handler } = buildServerWithHandler();
-    const collects = [
-      { id: 101, product_id: 1 },
-      { id: 102, product_id: 2 },
-      { id: 103, product_id: 3 },
-    ];
-    const requestSpy = vi.spyOn(client, "request")
-      .mockResolvedValueOnce({ collects })
-      .mockResolvedValue({});
+    const graphqlSpy = vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionReorderProducts: { job: { id: "gid://shopify/Job/1", done: false }, userErrors: [] } });
     const result = await handler({ collection_id: "10", product_ids: ["3", "1", "2"] });
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.reordered).toBe(3);
-    expect(parsed.items[0]).toMatchObject({ product_id: "3", position: 1 });
-    expect(parsed.items[1]).toMatchObject({ product_id: "1", position: 2 });
-    expect(parsed.items[2]).toMatchObject({ product_id: "2", position: 3 });
-    expect(requestSpy).toHaveBeenCalledTimes(4); // 1 fetch + 3 PUTs
+    expect(graphqlSpy).toHaveBeenCalledWith(expect.stringContaining("collectionReorderProducts"), expect.objectContaining({
+      id: "gid://shopify/Collection/10",
+      moves: [
+        { id: "gid://shopify/Product/3", newPosition: "0" },
+        { id: "gid://shopify/Product/1", newPosition: "1" },
+        { id: "gid://shopify/Product/2", newPosition: "2" },
+      ],
+    }));
   });
 
-  it("throws when a product_id is not in the collection", async () => {
+  it("throws when userErrors are returned", async () => {
     const { client, handler } = buildServerWithHandler();
-    vi.spyOn(client, "request").mockResolvedValueOnce({
-      collects: [{ id: 101, product_id: 1 }],
-    });
+    vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionReorderProducts: { job: null, userErrors: [{ field: ["moves"], message: "contains an invalid product" }] } });
     await expect(
       handler({ collection_id: "10", product_ids: ["1", "999"] })
-    ).rejects.toThrow("Products not found in collection 10: 999");
-  });
-
-  it("paginates collects using since_id when first page is full", async () => {
-    const { client, handler } = buildServerWithHandler();
-    const page1 = Array.from({ length: 250 }, (_, i) => ({ id: i + 1, product_id: i + 1 }));
-    const page2 = [{ id: 300, product_id: 300 }];
-    vi.spyOn(client, "request")
-      .mockResolvedValueOnce({ collects: page1 })
-      .mockResolvedValueOnce({ collects: page2 })
-      .mockResolvedValue({});
-    const result = await handler({ collection_id: "10", product_ids: ["300"] });
-    const parsed = JSON.parse(result.content[0].text);
-    expect(parsed.reordered).toBe(1);
-    expect(parsed.items[0]).toMatchObject({ product_id: "300", position: 1 });
+    ).rejects.toThrow("collectionReorderProducts errors: contains an invalid product");
   });
 });
 
@@ -430,7 +416,7 @@ describe("create_bundle handler", () => {
     const c = new ShopifyClient(testConfig);
     const handlers: Record<string, Function> = {};
     const orig = s.tool.bind(s);
-    s.tool = ((...args: any[]) => { handlers[args[0]] = args[args.length - 1]; return orig(...args); }) as any;
+    s.tool = ((...args: any[]) => { handlers[args[0]] = args[args.length - 1]; return (orig as any)(...args); }) as any;
     registerBundleTools(s, c);
     return { client: c, handler: handlers["create_bundle"] };
   }
@@ -514,7 +500,7 @@ describe("update_bundle handler", () => {
     const c = new ShopifyClient(testConfig);
     const handlers: Record<string, Function> = {};
     const orig = s.tool.bind(s);
-    s.tool = ((...args: any[]) => { handlers[args[0]] = args[args.length - 1]; return orig(...args); }) as any;
+    s.tool = ((...args: any[]) => { handlers[args[0]] = args[args.length - 1]; return (orig as any)(...args); }) as any;
     registerBundleTools(s, c);
     return { client: c, handler: handlers["update_bundle"] };
   }
@@ -570,7 +556,7 @@ describe("get_bundle_operation handler", () => {
     const c = new ShopifyClient(testConfig);
     const handlers: Record<string, Function> = {};
     const orig = s.tool.bind(s);
-    s.tool = ((...args: any[]) => { handlers[args[0]] = args[args.length - 1]; return orig(...args); }) as any;
+    s.tool = ((...args: any[]) => { handlers[args[0]] = args[args.length - 1]; return (orig as any)(...args); }) as any;
     registerBundleTools(s, c);
     return { client: c, handler: handlers["get_bundle_operation"] };
   }

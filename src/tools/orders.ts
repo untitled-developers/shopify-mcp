@@ -1,6 +1,35 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { compact, gid, searchQuery, throwOnUserErrors } from "./graphql-helpers.js";
+
+const ORDER_FIELDS = `
+  id
+  name
+  email
+  phone
+  note
+  tags
+  createdAt
+  updatedAt
+  cancelledAt
+  closed
+  displayFinancialStatus
+  displayFulfillmentStatus
+  totalPriceSet { shopMoney { amount currencyCode } }
+  lineItems(first: 50) { nodes { id name quantity sku } }
+`;
+
+function orderCancelReason(reason?: "customer" | "fraud" | "inventory" | "declined" | "other") {
+  const map = {
+    customer: "CUSTOMER",
+    fraud: "FRAUD",
+    inventory: "INVENTORY",
+    declined: "DECLINED",
+    other: "OTHER",
+  } as const;
+  return reason ? map[reason] : "OTHER";
+}
 
 export function registerOrderTools(server: McpServer, client: ShopifyClient) {
   // ── List orders ───────────────────────────────────────────────────
@@ -24,11 +53,29 @@ export function registerOrderTools(server: McpServer, client: ShopifyClient) {
       page_info: z.string().optional().describe("Cursor for pagination."),
     },
     async ({ limit, status, financial_status, fulfillment_status, created_at_min, created_at_max, since_id, page_info }) => {
-      const data = await client.request<{ orders: unknown[] }>("orders.json", {
-        params: { limit, status, financial_status, fulfillment_status, created_at_min, created_at_max, since_id, page_info },
+      const queryText = searchQuery({
+        status: status !== "any" ? status : undefined,
+        financial_status: financial_status !== "any" ? financial_status : undefined,
+        fulfillment_status: fulfillment_status !== "any" ? fulfillment_status : undefined,
+        created_at: created_at_min ? `>=${created_at_min}` : undefined,
+        updated_at: created_at_max ? `<=${created_at_max}` : undefined,
+        id: since_id ? `>${since_id}` : undefined,
+      });
+      const query = `
+        query ListOrders($first: Int!, $after: String, $query: String) {
+          orders(first: $first, after: $after, query: $query) {
+            nodes { ${ORDER_FIELDS} }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `;
+      const data = await client.graphql<{ orders: { nodes: unknown[]; pageInfo: unknown } }>(query, {
+        first: limit,
+        after: page_info ?? null,
+        query: queryText ?? null,
       });
       return {
-        content: [{ type: "text", text: JSON.stringify(data.orders, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ orders: data.orders.nodes, pageInfo: data.orders.pageInfo }, null, 2) }],
       };
     }
   );
@@ -41,7 +88,8 @@ export function registerOrderTools(server: McpServer, client: ShopifyClient) {
       order_id: z.string().describe("The numeric Shopify order ID."),
     },
     async ({ order_id }) => {
-      const data = await client.request<{ order: unknown }>(`orders/${order_id}.json`);
+      const query = `query GetOrder($id: ID!) { order(id: $id) { ${ORDER_FIELDS} fulfillments(first: 50) { nodes { id status trackingInfo { number url company } } } } }`;
+      const data = await client.graphql<{ order: unknown }>(query, { id: gid("Order", order_id) });
       return {
         content: [{ type: "text", text: JSON.stringify(data.order, null, 2) }],
       };
@@ -59,16 +107,22 @@ export function registerOrderTools(server: McpServer, client: ShopifyClient) {
       email: z.string().optional().describe("Update the customer email on the order."),
     },
     async ({ order_id, ...fields }) => {
-      const order: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v !== undefined) order[k] = v;
-      }
-      const data = await client.request<{ order: unknown }>(`orders/${order_id}.json`, {
-        method: "PUT",
-        body: { order },
+      const mutation = `
+        mutation OrderUpdate($input: OrderInput!) {
+          orderUpdate(input: $input) {
+            order { ${ORDER_FIELDS} }
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        orderUpdate: { order: unknown; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, {
+        input: { id: gid("Order", order_id), ...compact(fields) },
       });
+      throwOnUserErrors("orderUpdate", data.orderUpdate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.order, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.orderUpdate.order, null, 2) }],
       };
     }
   );
@@ -81,11 +135,20 @@ export function registerOrderTools(server: McpServer, client: ShopifyClient) {
       order_id: z.string().describe("The numeric Shopify order ID to close."),
     },
     async ({ order_id }) => {
-      const data = await client.request<{ order: unknown }>(`orders/${order_id}/close.json`, {
-        method: "POST",
-      });
+      const mutation = `
+        mutation OrderClose($input: OrderCloseInput!) {
+          orderClose(input: $input) {
+            order { ${ORDER_FIELDS} }
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        orderClose: { order: unknown; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, { input: { id: gid("Order", order_id) } });
+      throwOnUserErrors("orderClose", data.orderClose.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.order, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.orderClose.order, null, 2) }],
       };
     }
   );
@@ -104,14 +167,25 @@ export function registerOrderTools(server: McpServer, client: ShopifyClient) {
       restock: z.boolean().default(false).describe("Whether to restock the inventory. Default: false."),
     },
     async ({ order_id, reason, email, restock }) => {
-      const body: Record<string, unknown> = { email, restock };
-      if (reason) body.reason = reason;
-      const data = await client.request<{ order: unknown }>(`orders/${order_id}/cancel.json`, {
-        method: "POST",
-        body,
+      const mutation = `
+        mutation OrderCancel($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!, $notifyCustomer: Boolean) {
+          orderCancel(orderId: $orderId, reason: $reason, restock: $restock, notifyCustomer: $notifyCustomer) {
+            job { id done }
+            orderCancelUserErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        orderCancel: { job: unknown; orderCancelUserErrors: { field?: string[]; message: string }[] };
+      }>(mutation, {
+        orderId: gid("Order", order_id),
+        reason: orderCancelReason(reason),
+        restock,
+        notifyCustomer: email,
       });
+      throwOnUserErrors("orderCancel", data.orderCancel.orderCancelUserErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.order, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.orderCancel.job, null, 2) }],
       };
     }
   );

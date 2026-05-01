@@ -1,6 +1,50 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { compact, gid, nodes, searchQuery, throwOnUserErrors } from "./graphql-helpers.js";
+
+const PRODUCT_FIELDS = `
+  id
+  title
+  handle
+  vendor
+  productType
+  status
+  tags
+  descriptionHtml
+  createdAt
+  updatedAt
+  totalInventory
+  options { id name values }
+  variants(first: 100) {
+    nodes { id title sku price compareAtPrice inventoryQuantity selectedOptions { name value } inventoryItem { id } }
+  }
+  media(first: 100) {
+    nodes { id alt mediaContentType status preview { image { url altText } } }
+  }
+`;
+
+function productStatus(status?: "active" | "draft" | "archived") {
+  return status ? status.toUpperCase() : undefined;
+}
+
+function productInput(fields: {
+  title?: string;
+  body_html?: string;
+  vendor?: string;
+  product_type?: string;
+  tags?: string;
+  status?: "active" | "draft" | "archived";
+}) {
+  return compact({
+    title: fields.title,
+    descriptionHtml: fields.body_html,
+    vendor: fields.vendor,
+    productType: fields.product_type,
+    tags: fields.tags ? fields.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : undefined,
+    status: productStatus(fields.status),
+  });
+}
 
 export function registerProductTools(server: McpServer, client: ShopifyClient) {
   // ── List products ─────────────────────────────────────────────────
@@ -17,11 +61,28 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
       page_info: z.string().optional().describe("Cursor for next/previous page from a prior response's Link header."),
     },
     async ({ limit, status, title, vendor, product_type, collection_id, page_info }) => {
-      const data = await client.request<{ products: unknown[] }>("products.json", {
-        params: { limit, status, title, vendor, product_type, collection_id, page_info },
+      const queryText = searchQuery({
+        status,
+        title,
+        vendor,
+        product_type,
+        collection_id: collection_id ? gid("Collection", collection_id) : undefined,
+      });
+      const query = `
+        query ListProducts($first: Int!, $after: String, $query: String) {
+          products(first: $first, after: $after, query: $query) {
+            nodes { id title handle vendor productType status tags descriptionHtml createdAt updatedAt totalInventory featuredMedia { ... on MediaImage { id alt image { url } } } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `;
+      const data = await client.graphql<{ products: { nodes: unknown[]; pageInfo: unknown } }>(query, {
+        first: limit,
+        after: page_info ?? null,
+        query: queryText ?? null,
       });
       return {
-        content: [{ type: "text", text: JSON.stringify(data.products, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ products: data.products.nodes, pageInfo: data.products.pageInfo }, null, 2) }],
       };
     }
   );
@@ -34,7 +95,8 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
       product_id: z.string().describe("The numeric Shopify product ID."),
     },
     async ({ product_id }) => {
-      const data = await client.request<{ product: unknown }>(`products/${product_id}.json`);
+      const query = `query GetProduct($id: ID!) { product(id: $id) { ${PRODUCT_FIELDS} } }`;
+      const data = await client.graphql<{ product: unknown }>(query, { id: gid("Product", product_id) });
       return {
         content: [{ type: "text", text: JSON.stringify(data.product, null, 2) }],
       };
@@ -71,20 +133,69 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
         .describe("Product images by URL."),
     },
     async ({ title, body_html, vendor, product_type, tags, status, variants, images }) => {
-      const product: Record<string, unknown> = { title, status };
-      if (body_html) product.body_html = body_html;
-      if (vendor) product.vendor = vendor;
-      if (product_type) product.product_type = product_type;
-      if (tags) product.tags = tags;
-      if (variants) product.variants = variants;
-      if (images) product.images = images;
-
-      const data = await client.request<{ product: unknown }>("products.json", {
-        method: "POST",
-        body: { product },
+      const mutation = `
+        mutation CreateProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { ${PRODUCT_FIELDS} }
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        productCreate: { product: { id: string } | null; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, {
+        product: productInput({ title, body_html, vendor, product_type, tags, status }),
       });
+      throwOnUserErrors("productCreate", data.productCreate.userErrors);
+
+      let product = data.productCreate.product;
+      if (product && images?.length) {
+        const mediaMutation = `
+          mutation CreateProductMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+            productCreateMedia(productId: $productId, media: $media) {
+              media { id alt mediaContentType status }
+              mediaUserErrors { field message }
+              product { ${PRODUCT_FIELDS} }
+            }
+          }
+        `;
+        const mediaData = await client.graphql<{
+          productCreateMedia: { product: unknown; mediaUserErrors: { field?: string[]; message: string }[] };
+        }>(mediaMutation, {
+          productId: product.id,
+          media: images.map((image) => ({ originalSource: image.src, mediaContentType: "IMAGE" })),
+        });
+        throwOnUserErrors("productCreateMedia", mediaData.productCreateMedia.mediaUserErrors);
+        product = mediaData.productCreateMedia.product as { id: string };
+      }
+
+      if (product && variants?.length) {
+        const variantsMutation = `
+          mutation ProductVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkCreate(productId: $productId, variants: $variants) {
+              product { ${PRODUCT_FIELDS} }
+              productVariants { id title sku price }
+              userErrors { field message }
+            }
+          }
+        `;
+        const variantsData = await client.graphql<{
+          productVariantsBulkCreate: { product: unknown; userErrors: { field?: string[]; message: string }[] };
+        }>(variantsMutation, {
+          productId: product.id,
+          variants: variants.map((variant) => compact({
+            price: variant.price,
+            inventoryQuantities: variant.inventory_quantity !== undefined ? [{ availableQuantity: variant.inventory_quantity }] : undefined,
+            inventoryItem: compact({ sku: variant.sku, measurement: variant.weight !== undefined ? { weight: { value: variant.weight, unit: variant.weight_unit?.toUpperCase() } } : undefined }),
+            optionValues: variant.title ? [{ name: variant.title, optionName: "Title" }] : undefined,
+          })),
+        });
+        throwOnUserErrors("productVariantsBulkCreate", variantsData.productVariantsBulkCreate.userErrors);
+        product = variantsData.productVariantsBulkCreate.product as { id: string };
+      }
+
       return {
-        content: [{ type: "text", text: JSON.stringify(data.product, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(product, null, 2) }],
       };
     }
   );
@@ -103,16 +214,22 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
       status: z.enum(["active", "draft", "archived"]).optional().describe("New status."),
     },
     async ({ product_id, ...fields }) => {
-      const product: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v !== undefined) product[k] = v;
-      }
-      const data = await client.request<{ product: unknown }>(`products/${product_id}.json`, {
-        method: "PUT",
-        body: { product },
+      const mutation = `
+        mutation UpdateProduct($product: ProductUpdateInput!) {
+          productUpdate(product: $product) {
+            product { ${PRODUCT_FIELDS} }
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        productUpdate: { product: unknown; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, {
+        product: { id: gid("Product", product_id), ...productInput(fields) },
       });
+      throwOnUserErrors("productUpdate", data.productUpdate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.product, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.productUpdate.product, null, 2) }],
       };
     }
   );
@@ -125,9 +242,20 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
       product_id: z.string().describe("The numeric Shopify product ID to delete."),
     },
     async ({ product_id }) => {
-      await client.request(`products/${product_id}.json`, { method: "DELETE" });
+      const mutation = `
+        mutation DeleteProduct($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        productDelete: { deletedProductId: string | null; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, { input: { id: gid("Product", product_id) } });
+      throwOnUserErrors("productDelete", data.productDelete.userErrors);
       return {
-        content: [{ type: "text", text: `Product ${product_id} deleted successfully.` }],
+        content: [{ type: "text", text: `Product ${data.productDelete.deletedProductId ?? product_id} deleted successfully.` }],
       };
     }
   );

@@ -164,7 +164,7 @@ export function registerBundleTools(server: McpServer, client: ShopifyClient) {
   // ── Get a bundle with its components ─────────────────────────────
   server.tool(
     "get_bundle",
-    "Get full details of a bundle product including its component products, quantities, and option mappings. Uses GraphQL to fetch bundleComponents — unlike get_product (REST), this tool shows the bundle structure.",
+    "Get full details of a bundle product including its component products, quantities, and option mappings. Uses GraphQL to fetch bundleComponents, which exposes the bundle structure.",
     {
       product_id: z
         .string()

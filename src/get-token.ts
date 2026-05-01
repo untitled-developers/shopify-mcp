@@ -41,7 +41,6 @@ const SCOPES =
     "read_inventory", "write_inventory",
     "read_fulfillments", "write_fulfillments",
     "read_shipping", "write_shipping",
-    "read_price_rules", "write_price_rules",
     "read_discounts", "write_discounts",
     "read_script_tags", "write_script_tags",
     "read_themes", "write_themes",

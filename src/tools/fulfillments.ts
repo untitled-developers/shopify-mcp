@@ -1,43 +1,52 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { compact, gid, throwOnUserErrors } from "./graphql-helpers.js";
+
+const FULFILLMENT_ORDER_FIELDS = `
+  id
+  status
+  requestStatus
+  assignedLocation { name location { id } }
+  lineItems(first: 50) { nodes { id totalQuantity remainingQuantity lineItem { id name quantity } } }
+`;
+
+const FULFILLMENT_FIELDS = `
+  id
+  status
+  createdAt
+  updatedAt
+  trackingInfo { number url company }
+  fulfillmentLineItems(first: 50) { nodes { id quantity lineItem { id name } } }
+`;
+
+function trackingInfo(tracking_number?: string, tracking_url?: string, tracking_company?: string) {
+  return compact({ number: tracking_number, url: tracking_url, company: tracking_company });
+}
 
 export function registerFulfillmentTools(server: McpServer, client: ShopifyClient) {
-  // ── List fulfillment orders ───────────────────────────────────────
   server.tool(
     "list_fulfillment_orders",
     "List fulfillment orders for an order. Fulfillment orders represent groups of items to be fulfilled from a specific location.",
-    {
-      order_id: z.string().describe("The numeric Shopify order ID."),
-    },
+    { order_id: z.string().describe("The numeric Shopify order ID.") },
     async ({ order_id }) => {
-      const data = await client.request<{ fulfillment_orders: unknown[] }>(`orders/${order_id}/fulfillment_orders.json`);
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.fulfillment_orders, null, 2) }],
-      };
+      const query = `query ListFulfillmentOrders($orderId: ID!) { order(id: $orderId) { fulfillmentOrders(first: 50) { nodes { ${FULFILLMENT_ORDER_FIELDS} } } } }`;
+      const data = await client.graphql<{ order: { fulfillmentOrders: { nodes: unknown[] } } }>(query, { orderId: gid("Order", order_id) });
+      return { content: [{ type: "text", text: JSON.stringify(data.order.fulfillmentOrders.nodes, null, 2) }] };
     }
   );
 
-  // ── List fulfillments for an order ────────────────────────────────
   server.tool(
     "list_fulfillments",
     "List all fulfillments for an order, including tracking info and status.",
-    {
-      order_id: z.string().describe("The numeric Shopify order ID."),
-      limit: z.number().min(1).max(250).default(50).describe("Number of fulfillments to return. Default: 50."),
-      page_info: z.string().optional().describe("Cursor for pagination."),
-    },
-    async ({ order_id, limit, page_info }) => {
-      const data = await client.request<{ fulfillments: unknown[] }>(`orders/${order_id}/fulfillments.json`, {
-        params: { limit, page_info },
-      });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.fulfillments, null, 2) }],
-      };
+    { order_id: z.string().describe("The numeric Shopify order ID."), limit: z.number().min(1).max(250).default(50).describe("Number of fulfillments to return. Default: 50."), page_info: z.string().optional().describe("Cursor for pagination.") },
+    async ({ order_id }) => {
+      const query = `query ListFulfillments($orderId: ID!) { order(id: $orderId) { fulfillments { ${FULFILLMENT_FIELDS} } } }`;
+      const data = await client.graphql<{ order: { fulfillments: unknown[] } }>(query, { orderId: gid("Order", order_id) });
+      return { content: [{ type: "text", text: JSON.stringify(data.order.fulfillments, null, 2) }] };
     }
   );
 
-  // ── Create a fulfillment ──────────────────────────────────────────
   server.tool(
     "create_fulfillment",
     "Create a fulfillment for one or more fulfillment orders. This marks items as shipped and optionally adds tracking info.",
@@ -49,30 +58,19 @@ export function registerFulfillmentTools(server: McpServer, client: ShopifyClien
       notify_customer: z.boolean().default(true).describe("Whether to notify the customer. Default: true."),
     },
     async ({ fulfillment_order_ids, tracking_number, tracking_url, tracking_company, notify_customer }) => {
-      const line_items_by_fulfillment_order = fulfillment_order_ids.map((id) => ({
-        fulfillment_order_id: id,
-      }));
-      const fulfillment: Record<string, unknown> = {
-        line_items_by_fulfillment_order,
-        notify_customer,
-      };
-      if (tracking_number || tracking_url || tracking_company) {
-        fulfillment.tracking_info = {};
-        if (tracking_number) (fulfillment.tracking_info as Record<string, unknown>).number = tracking_number;
-        if (tracking_url) (fulfillment.tracking_info as Record<string, unknown>).url = tracking_url;
-        if (tracking_company) (fulfillment.tracking_info as Record<string, unknown>).company = tracking_company;
-      }
-      const data = await client.request<{ fulfillment: unknown }>("fulfillments.json", {
-        method: "POST",
-        body: { fulfillment },
+      const mutation = `mutation FulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) { fulfillmentCreate(fulfillment: $fulfillment, message: $message) { fulfillment { ${FULFILLMENT_FIELDS} } userErrors { field message } } }`;
+      const data = await client.graphql<{ fulfillmentCreate: { fulfillment: unknown; userErrors: { field?: string[]; message: string }[] } }>(mutation, {
+        fulfillment: compact({
+          notifyCustomer: notify_customer,
+          trackingInfo: trackingInfo(tracking_number, tracking_url, tracking_company),
+          lineItemsByFulfillmentOrder: fulfillment_order_ids.map((id) => ({ fulfillmentOrderId: gid("FulfillmentOrder", id) })),
+        }),
       });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.fulfillment, null, 2) }],
-      };
+      throwOnUserErrors("fulfillmentCreate", data.fulfillmentCreate.userErrors);
+      return { content: [{ type: "text", text: JSON.stringify(data.fulfillmentCreate.fulfillment, null, 2) }] };
     }
   );
 
-  // ── Update tracking for a fulfillment ─────────────────────────────
   server.tool(
     "update_fulfillment_tracking",
     "Update tracking information for an existing fulfillment.",
@@ -84,36 +82,26 @@ export function registerFulfillmentTools(server: McpServer, client: ShopifyClien
       notify_customer: z.boolean().default(false).describe("Whether to send an updated notification. Default: false."),
     },
     async ({ fulfillment_id, tracking_number, tracking_url, tracking_company, notify_customer }) => {
-      const fulfillment: Record<string, unknown> = { notify_customer };
-      const tracking_info: Record<string, unknown> = {};
-      if (tracking_number) tracking_info.number = tracking_number;
-      if (tracking_url) tracking_info.url = tracking_url;
-      if (tracking_company) tracking_info.company = tracking_company;
-      fulfillment.tracking_info = tracking_info;
-      const data = await client.request<{ fulfillment: unknown }>(`fulfillments/${fulfillment_id}/update_tracking.json`, {
-        method: "POST",
-        body: { fulfillment },
+      const mutation = `mutation FulfillmentTrackingInfoUpdate($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!, $notifyCustomer: Boolean) { fulfillmentTrackingInfoUpdate(fulfillmentId: $fulfillmentId, trackingInfoInput: $trackingInfoInput, notifyCustomer: $notifyCustomer) { fulfillment { ${FULFILLMENT_FIELDS} } userErrors { field message } } }`;
+      const data = await client.graphql<{ fulfillmentTrackingInfoUpdate: { fulfillment: unknown; userErrors: { field?: string[]; message: string }[] } }>(mutation, {
+        fulfillmentId: gid("Fulfillment", fulfillment_id),
+        trackingInfoInput: trackingInfo(tracking_number, tracking_url, tracking_company),
+        notifyCustomer: notify_customer,
       });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.fulfillment, null, 2) }],
-      };
+      throwOnUserErrors("fulfillmentTrackingInfoUpdate", data.fulfillmentTrackingInfoUpdate.userErrors);
+      return { content: [{ type: "text", text: JSON.stringify(data.fulfillmentTrackingInfoUpdate.fulfillment, null, 2) }] };
     }
   );
 
-  // ── Cancel a fulfillment ──────────────────────────────────────────
   server.tool(
     "cancel_fulfillment",
     "Cancel a fulfillment. This restocks the items and sets the fulfillment status to cancelled.",
-    {
-      fulfillment_id: z.string().describe("The numeric fulfillment ID to cancel."),
-    },
+    { fulfillment_id: z.string().describe("The numeric fulfillment ID to cancel.") },
     async ({ fulfillment_id }) => {
-      const data = await client.request<{ fulfillment: unknown }>(`fulfillments/${fulfillment_id}/cancel.json`, {
-        method: "POST",
-      });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.fulfillment, null, 2) }],
-      };
+      const mutation = `mutation FulfillmentCancel($id: ID!) { fulfillmentCancel(id: $id) { fulfillment { id status } userErrors { field message } } }`;
+      const data = await client.graphql<{ fulfillmentCancel: { fulfillment: unknown; userErrors: { field?: string[]; message: string }[] } }>(mutation, { id: gid("Fulfillment", fulfillment_id) });
+      throwOnUserErrors("fulfillmentCancel", data.fulfillmentCancel.userErrors);
+      return { content: [{ type: "text", text: JSON.stringify(data.fulfillmentCancel.fulfillment, null, 2) }] };
     }
   );
 }

@@ -1,6 +1,42 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { compact, gid, searchQuery, throwOnUserErrors } from "./graphql-helpers.js";
+
+const CUSTOMER_FIELDS = `
+  id
+  email
+  firstName
+  lastName
+  phone
+  tags
+  note
+  createdAt
+  updatedAt
+  numberOfOrders
+  amountSpent { amount currencyCode }
+  defaultAddress { address1 address2 city province country zip phone }
+`;
+
+function customerInput(fields: {
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  tags?: string;
+  note?: string;
+  addresses?: unknown[];
+}) {
+  return compact({
+    email: fields.email,
+    firstName: fields.first_name,
+    lastName: fields.last_name,
+    phone: fields.phone,
+    tags: fields.tags ? fields.tags.split(",").map((tag) => tag.trim()).filter(Boolean) : undefined,
+    note: fields.note,
+    addresses: fields.addresses,
+  });
+}
 
 export function registerCustomerTools(server: McpServer, client: ShopifyClient) {
   // ── List customers ────────────────────────────────────────────────
@@ -15,11 +51,22 @@ export function registerCustomerTools(server: McpServer, client: ShopifyClient) 
       page_info: z.string().optional().describe("Cursor for pagination."),
     },
     async ({ limit, since_id, created_at_min, created_at_max, page_info }) => {
-      const data = await client.request<{ customers: unknown[] }>("customers.json", {
-        params: { limit, since_id, created_at_min, created_at_max, page_info },
+      const queryText = searchQuery({ id: since_id ? `>${since_id}` : undefined, created_at: created_at_min ? `>=${created_at_min}` : undefined, updated_at: created_at_max ? `<=${created_at_max}` : undefined });
+      const query = `
+        query ListCustomers($first: Int!, $after: String, $query: String) {
+          customers(first: $first, after: $after, query: $query) {
+            nodes { ${CUSTOMER_FIELDS} }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `;
+      const data = await client.graphql<{ customers: { nodes: unknown[]; pageInfo: unknown } }>(query, {
+        first: limit,
+        after: page_info ?? null,
+        query: queryText ?? null,
       });
       return {
-        content: [{ type: "text", text: JSON.stringify(data.customers, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ customers: data.customers.nodes, pageInfo: data.customers.pageInfo }, null, 2) }],
       };
     }
   );
@@ -33,11 +80,17 @@ export function registerCustomerTools(server: McpServer, client: ShopifyClient) 
       limit: z.number().min(1).max(250).default(10).describe("Number of results (1–250). Default: 10."),
     },
     async ({ query, limit }) => {
-      const data = await client.request<{ customers: unknown[] }>("customers/search.json", {
-        params: { query, limit },
-      });
+      const gql = `
+        query SearchCustomers($first: Int!, $query: String) {
+          customers(first: $first, query: $query) {
+            nodes { ${CUSTOMER_FIELDS} }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      `;
+      const data = await client.graphql<{ customers: { nodes: unknown[]; pageInfo: unknown } }>(gql, { first: limit, query });
       return {
-        content: [{ type: "text", text: JSON.stringify(data.customers, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify({ customers: data.customers.nodes, pageInfo: data.customers.pageInfo }, null, 2) }],
       };
     }
   );
@@ -50,7 +103,8 @@ export function registerCustomerTools(server: McpServer, client: ShopifyClient) 
       customer_id: z.string().describe("The numeric Shopify customer ID."),
     },
     async ({ customer_id }) => {
-      const data = await client.request<{ customer: unknown }>(`customers/${customer_id}.json`);
+      const query = `query GetCustomer($id: ID!) { customer(id: $id) { ${CUSTOMER_FIELDS} } }`;
+      const data = await client.graphql<{ customer: unknown }>(query, { id: gid("Customer", customer_id) });
       return {
         content: [{ type: "text", text: JSON.stringify(data.customer, null, 2) }],
       };
@@ -84,21 +138,22 @@ export function registerCustomerTools(server: McpServer, client: ShopifyClient) 
         .describe("Customer addresses."),
     },
     async ({ email, first_name, last_name, phone, tags, note, addresses }) => {
-      const customer: Record<string, unknown> = {};
-      if (email) customer.email = email;
-      if (first_name) customer.first_name = first_name;
-      if (last_name) customer.last_name = last_name;
-      if (phone) customer.phone = phone;
-      if (tags) customer.tags = tags;
-      if (note) customer.note = note;
-      if (addresses) customer.addresses = addresses;
-
-      const data = await client.request<{ customer: unknown }>("customers.json", {
-        method: "POST",
-        body: { customer },
+      const mutation = `
+        mutation CustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { ${CUSTOMER_FIELDS} }
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        customerCreate: { customer: unknown; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, {
+        input: customerInput({ email, first_name, last_name, phone, tags, note, addresses }),
       });
+      throwOnUserErrors("customerCreate", data.customerCreate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.customer, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.customerCreate.customer, null, 2) }],
       };
     }
   );
@@ -117,16 +172,22 @@ export function registerCustomerTools(server: McpServer, client: ShopifyClient) 
       note: z.string().optional().describe("New internal note."),
     },
     async ({ customer_id, ...fields }) => {
-      const customer: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v !== undefined) customer[k] = v;
-      }
-      const data = await client.request<{ customer: unknown }>(`customers/${customer_id}.json`, {
-        method: "PUT",
-        body: { customer },
+      const mutation = `
+        mutation CustomerUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { ${CUSTOMER_FIELDS} }
+            userErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{
+        customerUpdate: { customer: unknown; userErrors: { field?: string[]; message: string }[] };
+      }>(mutation, {
+        input: { id: gid("Customer", customer_id), ...customerInput(fields) },
       });
+      throwOnUserErrors("customerUpdate", data.customerUpdate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.customer, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.customerUpdate.customer, null, 2) }],
       };
     }
   );

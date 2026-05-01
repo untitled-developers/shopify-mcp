@@ -4,7 +4,7 @@
 
 **[Website](https://untitled-developers.github.io/shopify-mcp)** | **[npm](https://www.npmjs.com/package/@kockatoos/shopify-mcp)** | **[GitHub](https://github.com/untitled-developers/shopify-mcp)**
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **128 tools** — using both REST and GraphQL under the hood.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that gives AI agents full access to the Shopify Admin API. Manage products, orders, customers, collections, fulfillments, discounts, and more through **136 tools** powered by the Shopify Admin GraphQL API.
 
 ---
 
@@ -128,7 +128,7 @@ Then point your MCP client to the built output:
 
 ---
 
-## Available Tools (80)
+## Available Tools (136)
 
 ### Shop (1)
 
@@ -172,7 +172,7 @@ Then point your MCP client to the built output:
 | `update_variant` | Update variant price, SKU, inventory, etc. |
 | `delete_variant` | Remove a variant from a product |
 
-### Collections (10)
+### Collections (13)
 
 | Tool | Description |
 |------|-------------|
@@ -181,8 +181,11 @@ Then point your MCP client to the built output:
 | `get_custom_collection` | Get a custom collection by ID |
 | `get_smart_collection` | Get a smart collection by ID |
 | `create_custom_collection` | Create a manual collection |
+| `create_smart_collection` | Create an automated collection with rules |
 | `update_custom_collection` | Update a custom collection |
 | `delete_custom_collection` | Delete a custom collection |
+| `update_smart_collection` | Update a smart collection |
+| `reorder_collection_products` | Reorder products in a manual collection |
 | `add_product_to_collection` | Add a product to a custom collection |
 | `remove_product_from_collection` | Remove a product from a custom collection |
 | `list_collection_products` | List all products in a collection |
@@ -237,20 +240,20 @@ Then point your MCP client to the built output:
 | `send_draft_order_invoice` | Email the draft order invoice to the customer |
 | `delete_draft_order` | Delete a draft order |
 
-### Discounts — Legacy REST (8)
+### Discounts — Compatibility Wrappers / GraphQL (8)
 
-These tools use the legacy REST Price Rules API and remain for backward compatibility.
+These tools keep the older Price Rules-style MCP names for backward compatibility, but they now call modern Admin GraphQL code-discount operations. Returned IDs and payloads are GraphQL discount node/redeem-code shapes.
 
 | Tool | Description |
 |------|-------------|
-| `list_price_rules` | List all price rules |
-| `get_price_rule` | Get a price rule by ID |
-| `create_price_rule` | Create a price rule (percentage, fixed, shipping) |
-| `update_price_rule` | Update a price rule |
-| `delete_price_rule` | Delete a price rule |
-| `list_discount_codes` | List discount codes for a price rule |
-| `create_discount_code` | Create a discount code for a price rule |
-| `delete_discount_code` | Delete a discount code |
+| `list_price_rules` | List code discounts through the compatibility wrapper |
+| `get_price_rule` | Get a code discount by DiscountCodeNode ID |
+| `create_price_rule` | Create a basic code discount |
+| `update_price_rule` | Update a basic code discount |
+| `delete_price_rule` | Delete a code discount |
+| `list_discount_codes` | List redeem codes for a code discount |
+| `create_discount_code` | Set the code on a basic code discount |
+| `delete_discount_code` | Delete a redeem code from a code discount |
 
 ### Discounts — Code Discounts / GraphQL (11)
 
@@ -308,6 +311,67 @@ Modern Shopify GraphQL discount API for automatic discounts (applied without a c
 | `update_webhook` | Update a webhook URL or topic |
 | `delete_webhook` | Remove a webhook |
 
+### Menus (5)
+
+| Tool | Description |
+|------|-------------|
+| `list_menus` | List navigation menus |
+| `get_menu` | Get a navigation menu by ID |
+| `create_menu` | Create a navigation menu |
+| `update_menu` | Update a navigation menu |
+| `delete_menu` | Delete a navigation menu |
+
+### Files (5)
+
+| Tool | Description |
+|------|-------------|
+| `list_files` | List files in Shopify Files |
+| `create_file` | Create a file from a staged upload or URL |
+| `update_file` | Update file metadata |
+| `delete_files` | Delete one or more files |
+| `stage_upload` | Create a staged upload target |
+
+### Apps (2)
+
+| Tool | Description |
+|------|-------------|
+| `list_app_installations` | List app installations |
+| `get_app_installation` | Get an app installation by ID |
+
+### Themes (10)
+
+| Tool | Description |
+|------|-------------|
+| `list_themes` | List online store themes |
+| `get_theme` | Get a theme by ID |
+| `create_theme` | Create a theme from a source URL |
+| `update_theme` | Update theme metadata |
+| `publish_theme` | Publish a theme |
+| `delete_theme` | Delete a theme |
+| `list_theme_files` | List files in a theme |
+| `get_theme_files` | Read theme file contents |
+| `upsert_theme_files` | Create or update theme files |
+| `delete_theme_files` | Delete theme files |
+
+### Pages (5)
+
+| Tool | Description |
+|------|-------------|
+| `list_pages` | List online store pages |
+| `get_page` | Get a page by ID |
+| `create_page` | Create a page |
+| `update_page` | Update a page |
+| `delete_page` | Delete a page |
+
+### Bundles (4)
+
+| Tool | Description |
+|------|-------------|
+| `create_bundle` | Create a product bundle operation |
+| `update_bundle` | Update a product bundle operation |
+| `get_bundle` | Get a bundle product by ID |
+| `get_bundle_operation` | Get a bundle operation by ID |
+
 ---
 
 ## Authentication
@@ -321,7 +385,6 @@ Required app scopes (configure in Shopify Admin → App → API access):
 - `read_inventory`, `write_inventory`
 - `read_locations`
 - `read_draft_orders`, `write_draft_orders`
-- `read_price_rules`, `write_price_rules`
 - `read_discounts`, `write_discounts`
 - `read_shipping`, `write_shipping`
 - `read_fulfillments`, `write_fulfillments`
@@ -348,7 +411,7 @@ src/
 ├── index.ts              # MCP server entry — wires everything together
 ├── config.ts             # Environment variable loading & validation
 ├── auth.ts               # Token management (client_credentials grant)
-├── shopify-client.ts     # HTTP client (REST + GraphQL)
+├── shopify-client.ts     # Admin GraphQL HTTP client
 └── tools/
     ├── shop.ts           # Store info
     ├── products.ts       # Products, product metafields, metafield definitions
@@ -359,7 +422,7 @@ src/
     ├── customers.ts      # Customers & customer metafields
     ├── inventory.ts      # Locations & inventory levels
     ├── draft-orders.ts   # Draft orders
-    ├── discounts.ts      # Legacy price rules (REST) + GraphQL code & automatic discounts
+    ├── discounts.ts      # GraphQL code, automatic, and compatibility discount tools
     ├── fulfillments.ts   # Fulfillments & tracking
     └── webhooks.ts       # Webhook management
 ```

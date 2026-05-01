@@ -1,9 +1,18 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { compact, gid, throwOnUserErrors } from "./graphql-helpers.js";
+
+const MEDIA_FIELDS = `
+  id
+  alt
+  mediaContentType
+  status
+  preview { image { url altText } }
+  ... on MediaImage { image { url altText width height } }
+`;
 
 export function registerImageTools(server: McpServer, client: ShopifyClient) {
-  // ── List product images ───────────────────────────────────────────
   server.tool(
     "list_product_images",
     "List all images for a product.",
@@ -13,16 +22,25 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       page_info: z.string().optional().describe("Cursor for pagination."),
     },
     async ({ product_id, limit, page_info }) => {
-      const data = await client.request<{ images: unknown[] }>(`products/${product_id}/images.json`, {
-        params: { limit, page_info },
+      const query = `
+        query ListProductImages($id: ID!, $first: Int!, $after: String) {
+          product(id: $id) {
+            media(first: $first, after: $after) {
+              nodes { ${MEDIA_FIELDS} }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      `;
+      const data = await client.graphql<{ product: { media: { nodes: unknown[]; pageInfo: unknown } } }>(query, {
+        id: gid("Product", product_id),
+        first: limit,
+        after: page_info ?? null,
       });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.images, null, 2) }],
-      };
+      return { content: [{ type: "text", text: JSON.stringify({ images: data.product.media.nodes, pageInfo: data.product.media.pageInfo }, null, 2) }] };
     }
   );
 
-  // ── Get a product image ───────────────────────────────────────────
   server.tool(
     "get_product_image",
     "Get details of a single product image.",
@@ -30,15 +48,13 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       product_id: z.string().describe("The numeric Shopify product ID."),
       image_id: z.string().describe("The numeric image ID."),
     },
-    async ({ product_id, image_id }) => {
-      const data = await client.request<{ image: unknown }>(`products/${product_id}/images/${image_id}.json`);
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.image, null, 2) }],
-      };
+    async ({ image_id }) => {
+      const query = `query GetProductImage($id: ID!) { node(id: $id) { ... on MediaImage { ${MEDIA_FIELDS} } } }`;
+      const data = await client.graphql<{ node: unknown }>(query, { id: gid("MediaImage", image_id) });
+      return { content: [{ type: "text", text: JSON.stringify(data.node, null, 2) }] };
     }
   );
 
-  // ── Create a product image ────────────────────────────────────────
   server.tool(
     "create_product_image",
     "Add an image to a product by URL. Optionally assign it to specific variants.",
@@ -49,22 +65,24 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       position: z.number().optional().describe("Position/order of the image (1 = first)."),
       variant_ids: z.array(z.string()).optional().describe("Variant IDs to associate this image with."),
     },
-    async ({ product_id, src, alt, position, variant_ids }) => {
-      const image: Record<string, unknown> = { src };
-      if (alt) image.alt = alt;
-      if (position !== undefined) image.position = position;
-      if (variant_ids) image.variant_ids = variant_ids;
-      const data = await client.request<{ image: unknown }>(`products/${product_id}/images.json`, {
-        method: "POST",
-        body: { image },
+    async ({ product_id, src, alt }) => {
+      const mutation = `
+        mutation CreateProductMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{ productCreateMedia: { media: unknown[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
+        productId: gid("Product", product_id),
+        media: [compact({ originalSource: src, alt, mediaContentType: "IMAGE" })],
       });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.image, null, 2) }],
-      };
+      throwOnUserErrors("productCreateMedia", data.productCreateMedia.mediaUserErrors);
+      return { content: [{ type: "text", text: JSON.stringify(data.productCreateMedia.media[0] ?? null, null, 2) }] };
     }
   );
 
-  // ── Update a product image ────────────────────────────────────────
   server.tool(
     "update_product_image",
     "Update a product image (change alt text, position, or variant assignments).",
@@ -75,22 +93,24 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       position: z.number().optional().describe("New position."),
       variant_ids: z.array(z.string()).optional().describe("New variant IDs to associate with."),
     },
-    async ({ product_id, image_id, ...fields }) => {
-      const image: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v !== undefined) image[k] = v;
-      }
-      const data = await client.request<{ image: unknown }>(`products/${product_id}/images/${image_id}.json`, {
-        method: "PUT",
-        body: { image },
+    async ({ product_id, image_id, alt }) => {
+      const mutation = `
+        mutation UpdateProductMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{ productUpdateMedia: { media: unknown[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
+        productId: gid("Product", product_id),
+        media: [compact({ id: gid("MediaImage", image_id), alt })],
       });
-      return {
-        content: [{ type: "text", text: JSON.stringify(data.image, null, 2) }],
-      };
+      throwOnUserErrors("productUpdateMedia", data.productUpdateMedia.mediaUserErrors);
+      return { content: [{ type: "text", text: JSON.stringify(data.productUpdateMedia.media[0] ?? null, null, 2) }] };
     }
   );
 
-  // ── Delete a product image ────────────────────────────────────────
   server.tool(
     "delete_product_image",
     "Delete an image from a product.",
@@ -99,10 +119,20 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       image_id: z.string().describe("The numeric image ID to delete."),
     },
     async ({ product_id, image_id }) => {
-      await client.request(`products/${product_id}/images/${image_id}.json`, { method: "DELETE" });
-      return {
-        content: [{ type: "text", text: `Image ${image_id} deleted from product ${product_id}.` }],
-      };
+      const mutation = `
+        mutation DeleteProductMedia($productId: ID!, $mediaIds: [ID!]!) {
+          productDeleteMedia(productId: $productId, mediaIds: $mediaIds) {
+            deletedMediaIds
+            mediaUserErrors { field message }
+          }
+        }
+      `;
+      const data = await client.graphql<{ productDeleteMedia: { deletedMediaIds: string[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
+        productId: gid("Product", product_id),
+        mediaIds: [gid("MediaImage", image_id)],
+      });
+      throwOnUserErrors("productDeleteMedia", data.productDeleteMedia.mediaUserErrors);
+      return { content: [{ type: "text", text: `Image ${data.productDeleteMedia.deletedMediaIds[0] ?? image_id} deleted from product ${product_id}.` }] };
     }
   );
 }
