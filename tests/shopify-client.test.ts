@@ -82,5 +82,57 @@ describe("ShopifyClient", () => {
         "Shopify GraphQL error 401"
       );
     });
+
+    it("retries after a 429 response and returns data on success", async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(new Response("Too Many Requests", { status: 429, headers: { "Retry-After": "1" } }))
+          .mockResolvedValueOnce(new Response(JSON.stringify({ data: { shop: { name: "ok" } } }), { status: 200 }));
+
+        const promise = client.graphql("{ shop { name } }");
+        await vi.advanceTimersByTimeAsync(1_000);
+        await expect(promise).resolves.toEqual({ shop: { name: "ok" } });
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("retries THROTTLED GraphQL errors and returns data on success", async () => {
+      vi.useFakeTimers();
+      try {
+        const throttled = { errors: [{ message: "Throttled", extensions: { code: "THROTTLED" } }] };
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValueOnce(new Response(JSON.stringify(throttled), { status: 200 }))
+          .mockResolvedValueOnce(new Response(JSON.stringify({ data: { ok: true } }), { status: 200 }));
+
+        const promise = client.graphql("{ shop { name } }");
+        await vi.advanceTimersByTimeAsync(1_000);
+        await expect(promise).resolves.toEqual({ ok: true });
+        expect(fetchSpy).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("gives up after exhausting retries on persistent 429s", async () => {
+      vi.useFakeTimers();
+      try {
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValue(new Response("Too Many Requests", { status: 429 }));
+
+        const promise = client.graphql("{ shop { name } }");
+        const assertion = expect(promise).rejects.toThrow("Shopify GraphQL error 429");
+        await vi.advanceTimersByTimeAsync(60_000);
+        await assertion;
+        expect(fetchSpy).toHaveBeenCalledTimes(4); // initial + 3 retries
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

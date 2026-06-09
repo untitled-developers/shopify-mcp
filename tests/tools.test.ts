@@ -358,7 +358,7 @@ describe("update_smart_collection handler", () => {
   it("throws when userErrors are returned", async () => {
     const { client, handler } = buildServerWithHandler();
     vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionUpdate: { collection: null, userErrors: [{ field: ["sortOrder"], message: "is invalid" }] } });
-    await expect(handler({ collection_id: "42", sort_order: "manual" })).rejects.toThrow("collectionUpdate errors: is invalid");
+    await expect(handler({ collection_id: "42", sort_order: "manual" })).rejects.toThrow("collectionUpdate errors: sortOrder: is invalid");
   });
 });
 
@@ -399,7 +399,7 @@ describe("reorder_collection_products handler", () => {
     vi.spyOn(client, "graphql").mockResolvedValueOnce({ collectionReorderProducts: { job: null, userErrors: [{ field: ["moves"], message: "contains an invalid product" }] } });
     await expect(
       handler({ collection_id: "10", product_ids: ["1", "999"] })
-    ).rejects.toThrow("collectionReorderProducts errors: contains an invalid product");
+    ).rejects.toThrow("collectionReorderProducts errors: moves: contains an invalid product");
   });
 });
 

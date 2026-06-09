@@ -26,14 +26,21 @@ export function compact<T extends Record<string, unknown>>(value: T): Partial<T>
 
 export function throwOnUserErrors(operation: string, errors?: ShopifyUserError[] | null): void {
   if (!errors || errors.length === 0) return;
-  const messages = errors.map((error) => error.message).join("; ");
+  const messages = errors
+    .map((error) => (error.field?.length ? `${error.field.join(".")}: ${error.message}` : error.message))
+    .join("; ");
   throw new Error(`${operation} errors: ${messages}`);
 }
 
 export function searchQuery(parts: Record<string, string | number | boolean | undefined>): string | undefined {
   const query = Object.entries(parts)
     .filter(([, value]) => value !== undefined && value !== "")
-    .map(([key, value]) => `${key}:${String(value)}`)
+    .map(([key, value]) => {
+      const text = String(value);
+      // Quote values with whitespace or quotes so the search syntax stays valid
+      const safe = /[\s"]/.test(text) ? `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : text;
+      return `${key}:${safe}`;
+    })
     .join(" ");
   return query || undefined;
 }

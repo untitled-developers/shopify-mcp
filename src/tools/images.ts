@@ -12,6 +12,45 @@ const MEDIA_FIELDS = `
   ... on MediaImage { image { url altText width height } }
 `;
 
+/** Applies optional position (reorder) and variant assignments to a media item. */
+async function applyMediaExtras(
+  client: ShopifyClient,
+  productId: string,
+  mediaId: string,
+  position?: number,
+  variantIds?: string[]
+): Promise<void> {
+  if (variantIds?.length) {
+    const mutation = `
+      mutation AppendVariantMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+        productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+          userErrors { field message }
+        }
+      }
+    `;
+    const data = await client.graphql<{ productVariantAppendMedia: { userErrors: { field?: string[]; message: string }[] } }>(mutation, {
+      productId,
+      variantMedia: variantIds.map((variantId) => ({ variantId: gid("ProductVariant", variantId), mediaIds: [mediaId] })),
+    });
+    throwOnUserErrors("productVariantAppendMedia", data.productVariantAppendMedia.userErrors);
+  }
+  if (position !== undefined) {
+    const mutation = `
+      mutation ReorderProductMedia($id: ID!, $moves: [MoveInput!]!) {
+        productReorderMedia(id: $id, moves: $moves) {
+          job { id }
+          mediaUserErrors { field message }
+        }
+      }
+    `;
+    const data = await client.graphql<{ productReorderMedia: { mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
+      id: productId,
+      moves: [{ id: mediaId, newPosition: String(Math.max(0, position - 1)) }],
+    });
+    throwOnUserErrors("productReorderMedia", data.productReorderMedia.mediaUserErrors);
+  }
+}
+
 export function registerImageTools(server: McpServer, client: ShopifyClient) {
   server.tool(
     "list_product_images",
@@ -62,10 +101,10 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       product_id: z.string().describe("The numeric Shopify product ID."),
       src: z.string().describe("Image URL to upload."),
       alt: z.string().optional().describe("Alt text for the image."),
-      position: z.number().optional().describe("Position/order of the image (1 = first)."),
-      variant_ids: z.array(z.string()).optional().describe("Variant IDs to associate this image with."),
+      position: z.number().min(1).optional().describe("Position/order of the image (1 = first)."),
+      variant_ids: z.array(z.string()).optional().describe("Variant IDs to associate this image with. Note: newly uploaded media may still be processing; if assignment fails, retry with update_product_image once the media status is READY."),
     },
-    async ({ product_id, src, alt }) => {
+    async ({ product_id, src, alt, position, variant_ids }) => {
       const mutation = `
         mutation CreateProductMedia($productId: ID!, $media: [CreateMediaInput!]!) {
           productCreateMedia(productId: $productId, media: $media) {
@@ -74,12 +113,16 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
           }
         }
       `;
-      const data = await client.graphql<{ productCreateMedia: { media: unknown[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
+      const data = await client.graphql<{ productCreateMedia: { media: { id: string }[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
         productId: gid("Product", product_id),
         media: [compact({ originalSource: src, alt, mediaContentType: "IMAGE" })],
       });
       throwOnUserErrors("productCreateMedia", data.productCreateMedia.mediaUserErrors);
-      return { content: [{ type: "text", text: JSON.stringify(data.productCreateMedia.media[0] ?? null, null, 2) }] };
+      const created = data.productCreateMedia.media[0] ?? null;
+      if (created) {
+        await applyMediaExtras(client, gid("Product", product_id), created.id, position, variant_ids);
+      }
+      return { content: [{ type: "text", text: JSON.stringify(created, null, 2) }] };
     }
   );
 
@@ -90,10 +133,10 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
       product_id: z.string().describe("The numeric Shopify product ID."),
       image_id: z.string().describe("The numeric image ID."),
       alt: z.string().optional().describe("New alt text."),
-      position: z.number().optional().describe("New position."),
-      variant_ids: z.array(z.string()).optional().describe("New variant IDs to associate with."),
+      position: z.number().min(1).optional().describe("New position (1 = first)."),
+      variant_ids: z.array(z.string()).optional().describe("Variant IDs to additionally associate this image with."),
     },
-    async ({ product_id, image_id, alt }) => {
+    async ({ product_id, image_id, alt, position, variant_ids }) => {
       const mutation = `
         mutation UpdateProductMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
           productUpdateMedia(productId: $productId, media: $media) {
@@ -102,12 +145,18 @@ export function registerImageTools(server: McpServer, client: ShopifyClient) {
           }
         }
       `;
-      const data = await client.graphql<{ productUpdateMedia: { media: unknown[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
-        productId: gid("Product", product_id),
-        media: [compact({ id: gid("MediaImage", image_id), alt })],
-      });
-      throwOnUserErrors("productUpdateMedia", data.productUpdateMedia.mediaUserErrors);
-      return { content: [{ type: "text", text: JSON.stringify(data.productUpdateMedia.media[0] ?? null, null, 2) }] };
+      const mediaId = gid("MediaImage", image_id);
+      let media: unknown = null;
+      if (alt !== undefined) {
+        const data = await client.graphql<{ productUpdateMedia: { media: unknown[]; mediaUserErrors: { field?: string[]; message: string }[] } }>(mutation, {
+          productId: gid("Product", product_id),
+          media: [{ id: mediaId, alt }],
+        });
+        throwOnUserErrors("productUpdateMedia", data.productUpdateMedia.mediaUserErrors);
+        media = data.productUpdateMedia.media[0] ?? null;
+      }
+      await applyMediaExtras(client, gid("Product", product_id), mediaId, position, variant_ids);
+      return { content: [{ type: "text", text: JSON.stringify(media ?? { id: mediaId, updated: true }, null, 2) }] };
     }
   );
 

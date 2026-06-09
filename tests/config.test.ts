@@ -83,4 +83,28 @@ describe("loadConfig", () => {
     const { loadConfig } = await import("../src/config.js");
     expect(() => loadConfig()).toThrow("Missing credentials. Set either SHOPIFY_ACCESS_TOKEN");
   });
+
+  it("normalizes a full .myshopify.com domain to the bare subdomain", async () => {
+    vi.stubEnv("SHOPIFY_STORE_NAME", "test-store.myshopify.com");
+    vi.stubEnv("SHOPIFY_ACCESS_TOKEN", "shpat_test_token");
+
+    const { loadConfig } = await import("../src/config.js");
+    expect(loadConfig().storeName).toBe("test-store");
+  });
+
+  it("normalizes a full https URL to the bare subdomain", async () => {
+    vi.stubEnv("SHOPIFY_STORE_NAME", "https://test-store.myshopify.com/admin");
+    vi.stubEnv("SHOPIFY_ACCESS_TOKEN", "shpat_test_token");
+
+    const { loadConfig } = await import("../src/config.js");
+    expect(loadConfig().storeName).toBe("test-store");
+  });
+
+  it("throws on a store name with unsafe characters", async () => {
+    vi.stubEnv("SHOPIFY_STORE_NAME", "bad store/../../name");
+    vi.stubEnv("SHOPIFY_ACCESS_TOKEN", "shpat_test_token");
+
+    const { loadConfig } = await import("../src/config.js");
+    expect(() => loadConfig()).toThrow("Invalid SHOPIFY_STORE_NAME");
+  });
 });

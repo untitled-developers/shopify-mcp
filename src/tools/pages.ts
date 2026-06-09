@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { gid, throwOnUserErrors } from "./graphql-helpers.js";
 
 export function registerPageTools(server: McpServer, client: ShopifyClient) {
   // ── List pages ─────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
       page_id: z.string().describe("The numeric Shopify page ID or GID (e.g. 'gid://shopify/Page/123')."),
     },
     async ({ page_id }) => {
-      const gid = page_id.startsWith("gid://") ? page_id : `gid://shopify/Page/${page_id}`;
+      const pageGid = gid("Page", page_id);
       const gqlQuery = `
         query GetPage($id: ID!) {
           page(id: $id) {
@@ -78,7 +79,7 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
           }
         }
       `;
-      const data = await client.graphql<{ page: unknown }>(gqlQuery, { id: gid });
+      const data = await client.graphql<{ page: unknown }>(gqlQuery, { id: pageGid });
       return {
         content: [{ type: "text", text: JSON.stringify(data.page, null, 2) }],
       };
@@ -128,8 +129,9 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
       const data = await client.graphql<{
         pageCreate: { page: unknown; userErrors: { code: string; field: string[]; message: string }[] };
       }>(mutation, { page: pageInput });
+      throwOnUserErrors("pageCreate", data.pageCreate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.pageCreate, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.pageCreate.page, null, 2) }],
       };
     }
   );
@@ -148,7 +150,7 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
       template_suffix: z.string().optional().describe("New custom template suffix."),
     },
     async ({ page_id, title, body, handle, is_published, published_at, template_suffix }) => {
-      const gid = page_id.startsWith("gid://") ? page_id : `gid://shopify/Page/${page_id}`;
+      const pageGid = gid("Page", page_id);
       const mutation = `
         mutation UpdatePage($id: ID!, $page: PageUpdateInput!) {
           pageUpdate(id: $id, page: $page) {
@@ -179,9 +181,10 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
 
       const data = await client.graphql<{
         pageUpdate: { page: unknown; userErrors: { code: string; field: string[]; message: string }[] };
-      }>(mutation, { id: gid, page: pageInput });
+      }>(mutation, { id: pageGid, page: pageInput });
+      throwOnUserErrors("pageUpdate", data.pageUpdate.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.pageUpdate, null, 2) }],
+        content: [{ type: "text", text: JSON.stringify(data.pageUpdate.page, null, 2) }],
       };
     }
   );
@@ -194,7 +197,7 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
       page_id: z.string().describe("The numeric Shopify page ID or GID to delete."),
     },
     async ({ page_id }) => {
-      const gid = page_id.startsWith("gid://") ? page_id : `gid://shopify/Page/${page_id}`;
+      const pageGid = gid("Page", page_id);
       const mutation = `
         mutation DeletePage($id: ID!) {
           pageDelete(id: $id) {
@@ -209,9 +212,10 @@ export function registerPageTools(server: McpServer, client: ShopifyClient) {
       `;
       const data = await client.graphql<{
         pageDelete: { deletedPageId: string | null; userErrors: { code: string; field: string[]; message: string }[] };
-      }>(mutation, { id: gid });
+      }>(mutation, { id: pageGid });
+      throwOnUserErrors("pageDelete", data.pageDelete.userErrors);
       return {
-        content: [{ type: "text", text: JSON.stringify(data.pageDelete, null, 2) }],
+        content: [{ type: "text", text: `Page ${data.pageDelete.deletedPageId ?? page_id} deleted successfully.` }],
       };
     }
   );

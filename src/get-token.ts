@@ -22,11 +22,13 @@
 import dotenv from "dotenv";
 import path from "path";
 import http from "http";
+import crypto from "crypto";
 import { exec } from "child_process";
+import { normalizeStoreName } from "./config.js";
 
 // Load .env from CWD first, then package dir fallback
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
-dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
+dotenv.config({ path: path.resolve(process.cwd(), ".env"), quiet: true });
+dotenv.config({ path: path.resolve(__dirname, "..", ".env"), quiet: true });
 
 const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
@@ -63,14 +65,40 @@ if (!CLIENT_ID || !CLIENT_SECRET || !STORE_NAME) {
   process.exit(1);
 }
 
-const shop = `${STORE_NAME}.myshopify.com`;
-const state = Math.random().toString(36).slice(2);
+const shop = `${normalizeStoreName(STORE_NAME)}.myshopify.com`;
+const state = crypto.randomBytes(16).toString("hex");
 const authorizeUrl =
   `https://${shop}/admin/oauth/authorize` +
-  `?client_id=${CLIENT_ID}` +
+  `?client_id=${encodeURIComponent(CLIENT_ID)}` +
   `&scope=${encodeURIComponent(SCOPES)}` +
   `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
   `&state=${state}`;
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function callbackPage(title: string, detail: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shopify MCP</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e8e8e8; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+  .card { background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; padding: 2.5rem 3rem; max-width: 480px; text-align: center; }
+  h2 { margin: 0 0 0.75rem; }
+  p { color: #999; line-height: 1.6; margin: 0.5rem 0; }
+  code { background: #1c1c1c; padding: 0.15rem 0.45rem; border-radius: 4px; color: #96bf48; font-size: 0.9em; }
+</style>
+</head>
+<body><div class="card"><h2>${title}</h2>${detail}</div></body>
+</html>`;
+}
 
 function openBrowser(url: string) {
   const platform = process.platform;
@@ -127,7 +155,7 @@ const server = http.createServer(async (req, res) => {
 
   if (error) {
     res.writeHead(400, { "Content-Type": "text/html" });
-    res.end(`<h2>OAuth error: ${error}</h2><p>You can close this tab.</p>`);
+    res.end(callbackPage(`OAuth error: ${escapeHtml(error)}`, "<p>You can close this tab.</p>"));
     server.close();
     console.error(`\nOAuth error: ${error}`);
     process.exit(1);
@@ -135,14 +163,14 @@ const server = http.createServer(async (req, res) => {
 
   if (returnedState !== state) {
     res.writeHead(400, { "Content-Type": "text/html" });
-    res.end("<h2>State mismatch — possible CSRF. Try again.</h2>");
+    res.end(callbackPage("State mismatch", "<p>Possible CSRF. Close this tab and try again.</p>"));
     server.close();
     process.exit(1);
   }
 
   if (!code) {
     res.writeHead(400, { "Content-Type": "text/html" });
-    res.end("<h2>No code in callback.</h2>");
+    res.end(callbackPage("No code in callback", "<p>Close this tab and try again.</p>"));
     server.close();
     process.exit(1);
   }
@@ -157,15 +185,15 @@ const server = http.createServer(async (req, res) => {
     console.log("then restart your MCP server.\n");
 
     res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(
-      "<h2>✅ Authorization successful!</h2>" +
+    res.end(callbackPage(
+      "✅ Authorization successful!",
       "<p>Your access token has been printed to the terminal.</p>" +
       "<p>Add <code>SHOPIFY_ACCESS_TOKEN=&lt;token&gt;</code> to your MCP config's <code>env</code> block, then restart the MCP server.</p>" +
       "<p>You can close this tab.</p>"
-    );
+    ));
   } catch (err) {
     res.writeHead(500, { "Content-Type": "text/html" });
-    res.end(`<h2>Token exchange failed</h2><pre>${err}</pre>`);
+    res.end(callbackPage("Token exchange failed", `<p>${escapeHtml(err instanceof Error ? err.message : String(err))}</p>`));
     console.error(err);
   } finally {
     server.close();

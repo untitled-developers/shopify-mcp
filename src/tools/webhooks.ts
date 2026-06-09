@@ -61,7 +61,7 @@ export function registerWebhookTools(server: McpServer, client: ShopifyClient) {
     }
   );
 
-  server.tool("update_webhook", "Update an existing webhook subscription (change the address or topic).", { webhook_id: z.string().describe("The numeric webhook ID."), address: z.string().optional().describe("New callback URL."), topic: z.string().optional().describe("New topic.") }, async ({ webhook_id, address }) => {
+  server.tool("update_webhook", "Update an existing webhook subscription's callback URL. The topic cannot be changed after creation; delete and recreate the webhook to change topics.", { webhook_id: z.string().describe("The numeric webhook ID."), address: z.string().optional().describe("New callback URL.") }, async ({ webhook_id, address }) => {
     const mutation = `mutation WebhookSubscriptionUpdate($id: ID!, $webhookSubscription: WebhookSubscriptionInput!) { webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) { webhookSubscription { ${WEBHOOK_FIELDS} } userErrors { field message } } }`;
     const data = await client.graphql<{ webhookSubscriptionUpdate: { webhookSubscription: unknown; userErrors: { field?: string[]; message: string }[] } }>(mutation, {
       id: gid("WebhookSubscription", webhook_id),

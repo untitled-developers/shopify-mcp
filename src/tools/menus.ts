@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { ShopifyClient } from "../shopify-client.js";
+import { gid } from "./graphql-helpers.js";
 
 interface MenuItemInput {
   title: string;
@@ -35,6 +36,23 @@ const menuItemInputSchema: z.ZodType<MenuItemInput> = z.lazy(() =>
     resourceId: z.string().optional().describe("GID of the linked resource (e.g. 'gid://shopify/Collection/123')."),
     tags: z.array(z.string()).optional().describe("Tags to filter a collection or blog."),
     items: z.array(menuItemInputSchema).optional().describe("Nested sub-items (max 3 levels deep)."),
+  })
+);
+
+interface MenuItemUpdateInput extends MenuItemInput {
+  id?: string;
+  items?: MenuItemUpdateInput[];
+}
+
+const menuItemUpdateSchema: z.ZodType<MenuItemUpdateInput> = z.lazy(() =>
+  z.object({
+    id: z.string().optional().describe("GID of existing item to update; omit to create a new item."),
+    title: z.string().describe("Item label."),
+    url: z.string().describe("URL the item links to."),
+    type: z.string().describe("Item type (e.g. COLLECTION, PRODUCT, PAGE, BLOG, HTTP, FRONTPAGE, CATALOG, SEARCH, SHOP_POLICY)."),
+    resourceId: z.string().optional().describe("GID of the linked resource."),
+    tags: z.array(z.string()).optional().describe("Tags to filter a collection or blog."),
+    items: z.array(menuItemUpdateSchema).optional().describe("Nested sub-items (max 3 levels deep)."),
   })
 );
 
@@ -188,32 +206,10 @@ export function registerMenuTools(server: McpServer, client: ShopifyClient) {
     "update_menu",
     "Update an existing navigation menu's title, handle, and items. Requires write_online_store_navigation access scope.",
     {
-      id: z.string().describe("GID of the menu to update (e.g. 'gid://shopify/Menu/123')."),
+      id: z.string().describe("The numeric menu ID or GID (e.g. 'gid://shopify/Menu/123')."),
       title: z.string().describe("New title for the menu."),
       handle: z.string().optional().describe("New handle (cannot be changed for default menus)."),
-      items: z.array(
-        z.object({
-          id: z.string().optional().describe("GID of existing item to update; omit to create a new item."),
-          title: z.string().describe("Item label."),
-          url: z.string().describe("URL the item links to."),
-          type: z.string().describe("Item type (e.g. COLLECTION, PRODUCT, PAGE, HTTP)."),
-          resourceId: z.string().optional().describe("GID of the linked resource."),
-          items: z.array(z.object({
-            id: z.string().optional(),
-            title: z.string(),
-            url: z.string(),
-            type: z.string(),
-            resourceId: z.string().optional(),
-            items: z.array(z.object({
-              id: z.string().optional(),
-              title: z.string(),
-              url: z.string(),
-              type: z.string(),
-              resourceId: z.string().optional(),
-            })).optional(),
-          })).optional().describe("Nested sub-items."),
-        })
-      ).describe("Complete new item list (replaces existing items)."),
+      items: z.array(menuItemUpdateSchema).describe("Complete new item list (replaces existing items)."),
     },
     async ({ id, title, handle, items }) => {
       const query = `
@@ -247,7 +243,7 @@ export function registerMenuTools(server: McpServer, client: ShopifyClient) {
       `;
       const data = await client.graphql<{
         menuUpdate: { menu: Menu | null; userErrors: { field: string[]; message: string }[] };
-      }>(query, { id, title, handle: handle ?? null, items });
+      }>(query, { id: gid("Menu", id), title, handle: handle ?? null, items });
       if (data.menuUpdate.userErrors.length > 0) {
         throw new Error(`menuUpdate errors: ${JSON.stringify(data.menuUpdate.userErrors)}`);
       }
@@ -262,7 +258,7 @@ export function registerMenuTools(server: McpServer, client: ShopifyClient) {
     "delete_menu",
     "Delete a navigation menu. Default menus (e.g. main-menu, footer-menu) cannot be deleted. Requires write_online_store_navigation access scope.",
     {
-      id: z.string().describe("GID of the menu to delete (e.g. 'gid://shopify/Menu/123')."),
+      id: z.string().describe("The numeric menu ID or GID (e.g. 'gid://shopify/Menu/123') to delete."),
     },
     async ({ id }) => {
       const query = `
@@ -278,7 +274,7 @@ export function registerMenuTools(server: McpServer, client: ShopifyClient) {
       `;
       const data = await client.graphql<{
         menuDelete: { deletedMenuId: string | null; userErrors: { field: string[]; message: string }[] };
-      }>(query, { id });
+      }>(query, { id: gid("Menu", id) });
       if (data.menuDelete.userErrors.length > 0) {
         throw new Error(`menuDelete errors: ${JSON.stringify(data.menuDelete.userErrors)}`);
       }
