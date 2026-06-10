@@ -158,8 +158,8 @@ Then point your MCP client to the built output:
 |------|-------------|
 | `list_product_images` | List all images for a product |
 | `get_product_image` | Get a specific product image |
-| `create_product_image` | Add an image to a product (by URL or base64) |
-| `update_product_image` | Update image alt text or position |
+| `create_product_image` | Add an image to a product by URL, with optional position and variant assignment |
+| `update_product_image` | Update image alt text, position, or variant assignments |
 | `delete_product_image` | Remove an image from a product |
 
 ### Variants (5)
@@ -308,7 +308,7 @@ Modern Shopify GraphQL discount API for automatic discounts (applied without a c
 | `list_webhooks` | List all registered webhooks |
 | `get_webhook` | Get a webhook by ID |
 | `create_webhook` | Register a new webhook |
-| `update_webhook` | Update a webhook URL or topic |
+| `update_webhook` | Update a webhook callback URL (topic cannot be changed after creation) |
 | `delete_webhook` | Remove a webhook |
 
 ### Menus (5)
@@ -316,7 +316,7 @@ Modern Shopify GraphQL discount API for automatic discounts (applied without a c
 | Tool | Description |
 |------|-------------|
 | `list_menus` | List navigation menus |
-| `get_menu` | Get a navigation menu by ID |
+| `get_menu` | Get a navigation menu by handle, including nested items |
 | `create_menu` | Create a navigation menu |
 | `update_menu` | Update a navigation menu |
 | `delete_menu` | Delete a navigation menu |

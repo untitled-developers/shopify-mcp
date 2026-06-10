@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kockatoos Shopify MCP Server</title>
-  <meta name="description" content="An MCP server that gives AI agents full access to the Shopify Admin API. 80 tools for managing products, orders, customers, collections, fulfillments, discounts, and more.">
+  <meta name="description" content="An MCP server that gives AI agents full access to the Shopify Admin API. 136 tools for managing products, orders, customers, collections, discounts, themes, pages, and more — powered by the Admin GraphQL API.">
   <meta property="og:title" content="Kockatoos Shopify MCP Server">
-  <meta property="og:description" content="Give AI agents full access to the Shopify Admin API with 80 tools — REST and GraphQL under the hood.">
+  <meta property="og:description" content="Give AI agents full access to the Shopify Admin API with 136 tools powered by the Admin GraphQL API.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://untitled-developers.github.io/shopify-mcp/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -396,9 +396,9 @@
 
   <!-- HERO -->
   <header class="hero">
-    <div class="hero-badge">MCP Server &middot; 80 Tools</div>
+    <div class="hero-badge">MCP Server &middot; 136 Tools</div>
     <h1>Give your AI agents<br><span>full Shopify access</span></h1>
-    <p>An MCP server that connects AI agents to the Shopify Admin API. Manage products, orders, customers, inventory, and more — using REST and GraphQL under the hood.</p>
+    <p>An MCP server that connects AI agents to the Shopify Admin API. Manage products, orders, customers, inventory, discounts, themes, and more — powered by the Admin GraphQL API.</p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="#setup">Get Started</a>
       <a class="btn btn-secondary" href="https://github.com/untitled-developers/shopify-mcp">View on GitHub</a>
@@ -416,16 +416,16 @@
   <section>
     <div class="stats">
       <div class="stat">
-        <div class="stat-num">80</div>
+        <div class="stat-num">136</div>
         <div class="stat-label">Tools</div>
       </div>
       <div class="stat">
-        <div class="stat-num">12</div>
+        <div class="stat-num">18</div>
         <div class="stat-label">Categories</div>
       </div>
       <div class="stat">
-        <div class="stat-num">REST + GraphQL</div>
-        <div class="stat-label">API Support</div>
+        <div class="stat-num">GraphQL</div>
+        <div class="stat-label">Admin API</div>
       </div>
       <div class="stat">
         <div class="stat-num">OAuth</div>
@@ -438,7 +438,7 @@
   <section id="tools">
     <div class="section-header">
       <h2>Available Tools</h2>
-      <p>80 tools across 12 categories covering the full Shopify Admin API surface.</p>
+      <p>136 tools across 18 categories covering the full Shopify Admin API surface.</p>
     </div>
     <div class="tool-grid">
 
@@ -455,7 +455,7 @@
       <div class="tool-card">
         <div class="tool-card-header">
           <h3>Products</h3>
-          <span class="tool-count">10 tools</span>
+          <span class="tool-count">11 tools</span>
         </div>
         <ul>
           <li><code>list_products</code> &mdash; List with filters and pagination</li>
@@ -480,8 +480,8 @@
         <ul>
           <li><code>list_product_images</code> &mdash; List all images</li>
           <li><code>get_product_image</code> &mdash; Get a specific image</li>
-          <li><code>create_product_image</code> &mdash; Add by URL or base64</li>
-          <li><code>update_product_image</code> &mdash; Update alt text or position</li>
+          <li><code>create_product_image</code> &mdash; Add by URL, set position and variants</li>
+          <li><code>update_product_image</code> &mdash; Update alt text, position, or variant links</li>
           <li><code>delete_product_image</code> &mdash; Remove an image</li>
         </ul>
       </div>
@@ -503,18 +503,18 @@
       <div class="tool-card">
         <div class="tool-card-header">
           <h3>Collections</h3>
-          <span class="tool-count">10 tools</span>
+          <span class="tool-count">13 tools</span>
         </div>
         <ul>
           <li><code>list_custom_collections</code> &mdash; List manual collections</li>
           <li><code>list_smart_collections</code> &mdash; List automated collections</li>
-          <li><code>get_custom_collection</code> &mdash; Get by ID</li>
-          <li><code>get_smart_collection</code> &mdash; Get by ID</li>
-          <li><code>create_custom_collection</code> &mdash; Create manual collection</li>
-          <li><code>update_custom_collection</code> &mdash; Update collection</li>
+          <li><code>get_custom_collection</code> / <code>get_smart_collection</code> &mdash; Get by ID</li>
+          <li><code>create_custom_collection</code> / <code>create_smart_collection</code> &mdash; Create collections</li>
+          <li><code>update_custom_collection</code> / <code>update_smart_collection</code> &mdash; Update collections</li>
           <li><code>delete_custom_collection</code> &mdash; Delete collection</li>
           <li><code>add_product_to_collection</code> &mdash; Add a product</li>
           <li><code>remove_product_from_collection</code> &mdash; Remove a product</li>
+          <li><code>reorder_collection_products</code> &mdash; Reorder manual collections</li>
           <li><code>list_collection_products</code> &mdash; List products in collection</li>
         </ul>
       </div>
@@ -588,17 +588,16 @@
       <div class="tool-card">
         <div class="tool-card-header">
           <h3>Discounts</h3>
-          <span class="tool-count">8 tools</span>
+          <span class="tool-count">30 tools</span>
         </div>
         <ul>
-          <li><code>list_price_rules</code> &mdash; List all price rules</li>
-          <li><code>get_price_rule</code> &mdash; Get by ID</li>
-          <li><code>create_price_rule</code> &mdash; Create rule (%, fixed, shipping)</li>
-          <li><code>update_price_rule</code> &mdash; Update rule</li>
-          <li><code>delete_price_rule</code> &mdash; Delete rule</li>
-          <li><code>list_discount_codes</code> &mdash; List codes for a rule</li>
-          <li><code>create_discount_code</code> &mdash; Create a code</li>
-          <li><code>delete_discount_code</code> &mdash; Delete a code</li>
+          <li><code>list_code_discounts</code> / <code>list_automatic_discounts</code> &mdash; List discounts</li>
+          <li><code>get_code_discount</code> / <code>get_automatic_discount</code> &mdash; Get by ID</li>
+          <li><code>create_code_discount_basic|bxgy|free_shipping</code> &mdash; Create code discounts</li>
+          <li><code>create_automatic_discount_basic|bxgy|free_shipping</code> &mdash; Create automatic discounts</li>
+          <li><code>update_*_discount_*</code> &mdash; Update any discount type</li>
+          <li><code>activate_*</code> / <code>deactivate_*</code> / <code>delete_*</code> &mdash; Manage discount lifecycle</li>
+          <li><code>*_price_rule</code>, <code>*_discount_code</code> &mdash; Legacy-named compatibility wrappers (GraphQL under the hood)</li>
         </ul>
       </div>
 
@@ -625,8 +624,91 @@
           <li><code>list_webhooks</code> &mdash; List all webhooks</li>
           <li><code>get_webhook</code> &mdash; Get by ID</li>
           <li><code>create_webhook</code> &mdash; Register a webhook</li>
-          <li><code>update_webhook</code> &mdash; Update URL or topic</li>
+          <li><code>update_webhook</code> &mdash; Update callback URL</li>
           <li><code>delete_webhook</code> &mdash; Remove a webhook</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Pages</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_pages</code> &mdash; List online store pages with filters</li>
+          <li><code>get_page</code> &mdash; Full details with body HTML</li>
+          <li><code>create_page</code> &mdash; Create a page</li>
+          <li><code>update_page</code> &mdash; Update content, handle, publish state</li>
+          <li><code>delete_page</code> &mdash; Permanently delete</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Menus</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_menus</code> &mdash; List navigation menus</li>
+          <li><code>get_menu</code> &mdash; Get full nested item tree by handle</li>
+          <li><code>create_menu</code> &mdash; Create with nested items</li>
+          <li><code>update_menu</code> &mdash; Replace title, handle, items</li>
+          <li><code>delete_menu</code> &mdash; Delete non-default menus</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Files</h3>
+          <span class="tool-count">5 tools</span>
+        </div>
+        <ul>
+          <li><code>list_files</code> &mdash; List files in Content &rarr; Files</li>
+          <li><code>create_file</code> &mdash; Upload from an external URL</li>
+          <li><code>update_file</code> &mdash; Rename or update alt text</li>
+          <li><code>delete_files</code> &mdash; Delete one or more files</li>
+          <li><code>stage_upload</code> &mdash; Create staged upload targets</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Themes</h3>
+          <span class="tool-count">10 tools</span>
+        </div>
+        <ul>
+          <li><code>list_themes</code> / <code>get_theme</code> &mdash; Inspect installed themes</li>
+          <li><code>create_theme</code> &mdash; Install from a ZIP URL</li>
+          <li><code>update_theme</code> &mdash; Rename a theme</li>
+          <li><code>publish_theme</code> &mdash; Make a theme live</li>
+          <li><code>delete_theme</code> &mdash; Remove a theme</li>
+          <li><code>list_theme_files</code> / <code>get_theme_files</code> &mdash; Browse and read files</li>
+          <li><code>upsert_theme_files</code> &mdash; Create or update files</li>
+          <li><code>delete_theme_files</code> &mdash; Delete files</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Bundles</h3>
+          <span class="tool-count">4 tools</span>
+        </div>
+        <ul>
+          <li><code>create_bundle</code> &mdash; Create a fixed product bundle</li>
+          <li><code>update_bundle</code> &mdash; Update bundle components</li>
+          <li><code>get_bundle</code> &mdash; Get bundle with components</li>
+          <li><code>get_bundle_operation</code> &mdash; Poll async bundle operations</li>
+        </ul>
+      </div>
+
+      <div class="tool-card">
+        <div class="tool-card-header">
+          <h3>Apps</h3>
+          <span class="tool-count">2 tools</span>
+        </div>
+        <ul>
+          <li><code>list_app_installations</code> &mdash; List installed apps</li>
+          <li><code>get_app_installation</code> &mdash; Get install details and scopes</li>
         </ul>
       </div>
 
@@ -667,14 +749,19 @@
           <td>Your store name (not the full <code>.myshopify.com</code> domain)</td>
         </tr>
         <tr>
+          <td><code>SHOPIFY_ACCESS_TOKEN</code></td>
+          <td><span class="optional">Option A</span></td>
+          <td>Admin API access token (<code>shpat_...</code>) &mdash; works for any app type</td>
+        </tr>
+        <tr>
           <td><code>SHOPIFY_CLIENT_ID</code></td>
-          <td><span class="required">Required</span></td>
-          <td>App client ID</td>
+          <td><span class="optional">Option B</span></td>
+          <td>App client ID (store-created custom apps)</td>
         </tr>
         <tr>
           <td><code>SHOPIFY_CLIENT_SECRET</code></td>
-          <td><span class="required">Required</span></td>
-          <td>App client secret</td>
+          <td><span class="optional">Option B</span></td>
+          <td>App client secret (store-created custom apps)</td>
         </tr>
         <tr>
           <td><code>SHOPIFY_API_VERSION</code></td>
@@ -689,12 +776,16 @@
   <section id="auth">
     <div class="section-header">
       <h2>Authentication</h2>
-      <p>Uses Shopify's client_credentials OAuth grant. No browser auth needed.</p>
+      <p>Two ways to authenticate: a direct Admin API access token, or the client_credentials OAuth grant for store-created custom apps.</p>
     </div>
 
     <div class="auth-block">
+      <h3>Option A &mdash; Access token</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">Set <code>SHOPIFY_ACCESS_TOKEN</code> to an Admin API token. For Partner Dashboard apps, run <code>npx shopify-mcp-get-token</code> to complete browser OAuth once and obtain a token.</p>
+      <h3>Option B &mdash; Client credentials</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">For custom apps created in the Shopify admin, set <code>SHOPIFY_CLIENT_ID</code> and <code>SHOPIFY_CLIENT_SECRET</code>. Tokens are fetched and refreshed automatically &mdash; no browser auth needed.</p>
       <h3>Required App Scopes</h3>
-      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">Configure in Shopify Admin &rarr; Apps and sales channels &rarr; Develop apps &rarr; API access.</p>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.25rem;">Configure in Shopify Admin &rarr; Apps and sales channels &rarr; Develop apps &rarr; API access. Grant only the scopes for the tool groups you plan to use.</p>
       <div class="scopes-grid">
         <div class="scope">read_products, write_products</div>
         <div class="scope">read_orders, write_orders</div>
@@ -702,10 +793,14 @@
         <div class="scope">read_inventory, write_inventory</div>
         <div class="scope">read_locations</div>
         <div class="scope">read_draft_orders, write_draft_orders</div>
-        <div class="scope">read_price_rules, write_price_rules</div>
         <div class="scope">read_discounts, write_discounts</div>
-        <div class="scope">read_shipping, write_shipping</div>
         <div class="scope">read_fulfillments, write_fulfillments</div>
+        <div class="scope">read_shipping, write_shipping</div>
+        <div class="scope">read_themes, write_themes</div>
+        <div class="scope">read_content, write_content</div>
+        <div class="scope">read_online_store_pages, write_online_store_pages</div>
+        <div class="scope">read_online_store_navigation, write_online_store_navigation</div>
+        <div class="scope">read_files, write_files</div>
       </div>
     </div>
   </section>
@@ -722,7 +817,12 @@
   <script>
     function copyInstall() {
       const text = document.getElementById('install-cmd').textContent;
-      navigator.clipboard.writeText(text);
+      const button = document.querySelector('.install-bar button');
+      navigator.clipboard.writeText(text).then(() => {
+        const original = button.innerHTML;
+        button.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#96bf48" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+        setTimeout(() => { button.innerHTML = original; }, 1500);
+      });
     }
   </script>
 </body>

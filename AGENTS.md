@@ -40,5 +40,5 @@ This is a TypeScript CommonJS MCP server for the Shopify Admin API. Keep changes
 
 ## Validation Notes
 
-- As of this file's creation, `npm test` reports 87 passing tests and 6 existing failures in [tests/auth.test.ts](tests/auth.test.ts) and [tests/config.test.ts](tests/config.test.ts). The failures reflect stale expectations around client-credentials auth and required credential errors; do not treat them as caused by unrelated changes.
-- [tests/shopify-client.test.ts](tests/shopify-client.test.ts) and [tests/tools.test.ts](tests/tools.test.ts) currently pass and are useful focused checks for client behavior and tool-registration changes.
+- `npm test` should pass fully; treat any failure as caused by your change until proven otherwise.
+- [tests/shopify-client.test.ts](tests/shopify-client.test.ts) and [tests/tools.test.ts](tests/tools.test.ts) are useful focused checks for client behavior and tool-registration changes; [tests/graphql-helpers.test.ts](tests/graphql-helpers.test.ts) covers the shared helpers.

@@ -37,11 +37,11 @@ export function registerInventoryTools(server: McpServer, client: ShopifyClient)
       limit: z.number().min(1).max(250).default(50).describe("Number of results (1-250). Default: 50."),
       page_info: z.string().optional().describe("Cursor for pagination."),
     },
-    async ({ location_id, limit }) => {
+    async ({ location_id, limit, page_info }) => {
       const query = `
-        query InventoryLevels($locationId: ID!, $first: Int!) {
+        query InventoryLevels($locationId: ID!, $first: Int!, $after: String) {
           location(id: $locationId) {
-            inventoryLevels(first: $first) {
+            inventoryLevels(first: $first, after: $after) {
               nodes { ${INVENTORY_LEVEL_FIELDS} }
               pageInfo { hasNextPage endCursor }
             }
@@ -51,6 +51,7 @@ export function registerInventoryTools(server: McpServer, client: ShopifyClient)
       const data = await client.graphql<{ location: { inventoryLevels: { nodes: unknown[]; pageInfo: unknown } } }>(query, {
         locationId: gid("Location", location_id),
         first: limit,
+        after: page_info ?? null,
       });
       return { content: [{ type: "text", text: JSON.stringify({ inventory_levels: data.location.inventoryLevels.nodes, pageInfo: data.location.inventoryLevels.pageInfo }, null, 2) }] };
     }

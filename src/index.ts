@@ -23,13 +23,15 @@ import { registerThemeTools } from "./tools/themes.js";
 import { registerPageTools } from "./tools/pages.js";
 import { registerBundleTools } from "./tools/bundles.js";
 
+const { version } = require("../package.json") as { version: string };
+
 async function main() {
   const config = loadConfig();
   const client = new ShopifyClient(config);
 
   const server = new McpServer({
     name: "kockatoos-shopify-mcp",
-    version: "1.0.0",
+    version,
   });
 
   // Register all tool groups

@@ -106,7 +106,7 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
   // ── Create a product ──────────────────────────────────────────────
   server.tool(
     "create_product",
-    "Create a new product. At minimum provide a title. The product is created in 'draft' status by default. Variants can be provided to set prices, SKUs, and inventory.",
+    "Create a new product. At minimum provide a title. The product is created in 'draft' status by default. Variants can be provided to set prices, SKUs, and inventory. Note: images and variants are added in follow-up calls after the product is created; if one of those steps fails, the product still exists and the error message includes its ID so you can fix it with update tools.",
     {
       title: z.string().describe("Product title (required)."),
       body_html: z.string().optional().describe("Product description in HTML."),
@@ -147,9 +147,13 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
         product: productInput({ title, body_html, vendor, product_type, tags, status }),
       });
       throwOnUserErrors("productCreate", data.productCreate.userErrors);
+      if (!data.productCreate.product) {
+        throw new Error("productCreate returned no product and no userErrors.");
+      }
 
+      const productId = data.productCreate.product.id;
       let product = data.productCreate.product;
-      if (product && images?.length) {
+      if (images?.length) {
         const mediaMutation = `
           mutation CreateProductMedia($productId: ID!, $media: [CreateMediaInput!]!) {
             productCreateMedia(productId: $productId, media: $media) {
@@ -162,14 +166,18 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
         const mediaData = await client.graphql<{
           productCreateMedia: { product: unknown; mediaUserErrors: { field?: string[]; message: string }[] };
         }>(mediaMutation, {
-          productId: product.id,
+          productId,
           media: images.map((image) => ({ originalSource: image.src, mediaContentType: "IMAGE" })),
         });
-        throwOnUserErrors("productCreateMedia", mediaData.productCreateMedia.mediaUserErrors);
-        product = mediaData.productCreateMedia.product as { id: string };
+        try {
+          throwOnUserErrors("productCreateMedia", mediaData.productCreateMedia.mediaUserErrors);
+        } catch (err) {
+          throw new Error(`Product ${productId} was created, but adding images failed. ${err instanceof Error ? err.message : String(err)}`);
+        }
+        product = (mediaData.productCreateMedia.product as { id: string }) ?? product;
       }
 
-      if (product && variants?.length) {
+      if (variants?.length) {
         const variantsMutation = `
           mutation ProductVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
             productVariantsBulkCreate(productId: $productId, variants: $variants) {
@@ -182,7 +190,7 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
         const variantsData = await client.graphql<{
           productVariantsBulkCreate: { product: unknown; userErrors: { field?: string[]; message: string }[] };
         }>(variantsMutation, {
-          productId: product.id,
+          productId,
           variants: variants.map((variant) => compact({
             price: variant.price,
             inventoryQuantities: variant.inventory_quantity !== undefined ? [{ availableQuantity: variant.inventory_quantity }] : undefined,
@@ -190,8 +198,12 @@ export function registerProductTools(server: McpServer, client: ShopifyClient) {
             optionValues: variant.title ? [{ name: variant.title, optionName: "Title" }] : undefined,
           })),
         });
-        throwOnUserErrors("productVariantsBulkCreate", variantsData.productVariantsBulkCreate.userErrors);
-        product = variantsData.productVariantsBulkCreate.product as { id: string };
+        try {
+          throwOnUserErrors("productVariantsBulkCreate", variantsData.productVariantsBulkCreate.userErrors);
+        } catch (err) {
+          throw new Error(`Product ${productId} was created, but adding variants failed. ${err instanceof Error ? err.message : String(err)}`);
+        }
+        product = (variantsData.productVariantsBulkCreate.product as { id: string }) ?? product;
       }
 
       return {
